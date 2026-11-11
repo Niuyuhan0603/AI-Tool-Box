@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Page
+    x:Class="AI_Tool_Box.Views.WelcomePage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:wv2="using:Microsoft.UI.Xaml.Controls">
+
+    <Grid Background="{ThemeResource LayerFillColorDefaultBrush}">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+
+        <!-- 欢迎文本区（SiderFusion 钻石小图标 + 标题） -->
+        <StackPanel Grid.Row="0"
+                    HorizontalAlignment="Center"
+                    VerticalAlignment="Center"
+                    Spacing="8"
+                    Margin="0,24,0,8">
+            <StackPanel Orientation="Horizontal"
+                        HorizontalAlignment="Center"
+                        Spacing="12">
+                <Image Width="28" Height="28"
+                       VerticalAlignment="Center">
+                    <Image.Source>
+                        <SvgImageSource UriSource="ms-appx:///Assets/Web/sider/diamond-light.svg"
+                                        RasterizePixelHeight="56"
+                                        RasterizePixelWidth="56"/>
+                    </Image.Source>
+                </Image>
+                <TextBlock Text="欢迎使用 H+Studio 的 AI-Tool-Box"
+                           Style="{StaticResource TitleLargeTextBlockStyle}"
+                           VerticalAlignment="Center"/>
+            </StackPanel>
+            <TextBlock Text="请从左侧选择功能模块，或输入网址开始浏览"
+                       Style="{StaticResource BodyTextBlockStyle}"
+                       Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                       HorizontalAlignment="Center"/>
+        </StackPanel>
+
+        <!-- 蜂巢苯环 + 代码雨动画（Canvas 实现，加载 Assets/Web/welcome.html） -->
+        <wv2:WebView2 Grid.Row="1"
+                      x:Name="WelcomeWeb"
+                      HorizontalAlignment="Stretch"
+                      VerticalAlignment="Stretch"
+                      DefaultBackgroundColor="Transparent"/>
+    </Grid>
+</Page>

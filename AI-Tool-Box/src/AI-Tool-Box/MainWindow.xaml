@@ -1,0 +1,244 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Window
+    x:Class="AI_Tool_Box.MainWindow"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:views="using:AI_Tool_Box.Views"
+    xmlns:controls="using:AI_Tool_Box.Controls"
+    xmlns:local="using:AI_Tool_Box">
+
+    <Grid>
+        <!-- 左侧侧栏 + 右侧 Frame（所有功能页统一导航到 Frame） -->
+        <NavigationView x:Name="RootNav"
+                        PaneDisplayMode="Left"
+                        PaneTitle="AI-Tool-Box"
+                        IsBackButtonVisible="Collapsed"
+                        IsSettingsVisible="False"
+                        CompactPaneLength="48"
+                        OpenPaneLength="220"
+                        SelectionChanged="OnNavSelectionChanged">
+
+            <NavigationView.MenuItems>
+                <NavigationViewItem Tag="Browser" Content="网址导航">
+                    <NavigationViewItem.Icon>
+                        <SymbolIcon Symbol="GlobalNavigationButton"/>
+                    </NavigationViewItem.Icon>
+                </NavigationViewItem>
+
+                <NavigationViewItem Tag="AiAssist" Content="右侧栏AI辅助">
+                    <NavigationViewItem.Icon>
+                        <FontIcon Glyph="&#xE8BD;"/>
+                    </NavigationViewItem.Icon>
+                </NavigationViewItem>
+
+                <NavigationViewItem Tag="OCR" Content="本地 OCR">
+                    <NavigationViewItem.Icon>
+                        <SymbolIcon Symbol="Find"/>
+                    </NavigationViewItem.Icon>
+                </NavigationViewItem>
+
+                <NavigationViewItem Tag="FileTransfer" Content="同局域网传文件">
+                    <NavigationViewItem.Icon>
+                        <SymbolIcon Symbol="Sync"/>
+                    </NavigationViewItem.Icon>
+                </NavigationViewItem>
+
+                <NavigationViewItem Tag="AnswerShare" Content="分享题目答案">
+                    <NavigationViewItem.Icon>
+                        <SymbolIcon Symbol="Share"/>
+                    </NavigationViewItem.Icon>
+                </NavigationViewItem>
+
+                <NavigationViewItem Tag="AutoAnswer" Content="自动答题">
+                    <NavigationViewItem.Icon>
+                        <SymbolIcon Symbol="Edit"/>
+                    </NavigationViewItem.Icon>
+                </NavigationViewItem>
+
+                <NavigationViewItem Tag="Sniffer" Content="视频/音频嗅探器">
+                    <NavigationViewItem.Icon>
+                        <SymbolIcon Symbol="Video"/>
+                    </NavigationViewItem.Icon>
+                </NavigationViewItem>
+
+                <NavigationViewItem Tag="LanAI" Content="局域网 AI 服务">
+                    <NavigationViewItem.Icon>
+                        <SymbolIcon Symbol="World"/>
+                    </NavigationViewItem.Icon>
+                </NavigationViewItem>
+
+                <NavigationViewItem Tag="Ollama" Content="本地 Ollama">
+                    <NavigationViewItem.Icon>
+                        <FontIcon Glyph="&#xE99A;"/>
+                    </NavigationViewItem.Icon>
+                </NavigationViewItem>
+
+                <NavigationViewItem Tag="MediaSummary" Content="音视频 AI 总结">
+                    <NavigationViewItem.Icon>
+                        <FontIcon Glyph="&#xE91B;"/>
+                    </NavigationViewItem.Icon>
+                </NavigationViewItem>
+
+                <NavigationViewItem Tag="MindMap" Content="思维导图">
+                    <NavigationViewItem.Icon>
+                        <FontIcon Glyph="&#xE8F1;"/>
+                    </NavigationViewItem.Icon>
+                </NavigationViewItem>
+
+                <NavigationViewItem Tag="HtmlEditor" Content="HTML 编辑器">
+                    <NavigationViewItem.Icon>
+                        <FontIcon Glyph="&#xE943;"/>
+                    </NavigationViewItem.Icon>
+                </NavigationViewItem>
+
+                <NavigationViewItem Tag="Calculator" Content="科学计算器">
+                    <NavigationViewItem.Icon>
+                        <FontIcon Glyph="&#xE8EF;"/>
+                    </NavigationViewItem.Icon>
+                </NavigationViewItem>
+
+                <NavigationViewItem Tag="Physics" Content="物理模拟器">
+                    <NavigationViewItem.Icon>
+                        <FontIcon Glyph="&#xE9CA;"/>
+                    </NavigationViewItem.Icon>
+                </NavigationViewItem>
+
+                <NavigationViewItem Tag="Genetics" Content="生物遗传模拟器">
+                    <NavigationViewItem.Icon>
+                        <FontIcon Glyph="&#xEC6A;"/>
+                    </NavigationViewItem.Icon>
+                </NavigationViewItem>
+
+                <NavigationViewItem Tag="WrongBook" Content="错题本">
+                    <NavigationViewItem.Icon>
+                        <FontIcon Glyph="&#xE82D;"/>
+                    </NavigationViewItem.Icon>
+                </NavigationViewItem>
+
+                <NavigationViewItem Tag="Molecule" Content="分子模拟器">
+                    <NavigationViewItem.Icon>
+                        <FontIcon Glyph="&#xEC6A;"/>
+                    </NavigationViewItem.Icon>
+                </NavigationViewItem>
+
+                <NavigationViewItem Tag="Novel" Content="AI 小说创作">
+                    <NavigationViewItem.Icon>
+                        <FontIcon Glyph="&#xE70F;"/>
+                    </NavigationViewItem.Icon>
+                </NavigationViewItem>
+
+                <NavigationViewItem Tag="Autoscript" Content="Autoscript 脚本">
+                    <NavigationViewItem.Icon>
+                        <FontIcon Glyph="&#xE756;"/>
+                    </NavigationViewItem.Icon>
+                </NavigationViewItem>
+
+                <NavigationViewItem Tag="Messaging" Content="通讯软件接入">
+                    <NavigationViewItem.Icon>
+                        <FontIcon Glyph="&#xE8BD;"/>
+                    </NavigationViewItem.Icon>
+                </NavigationViewItem>
+
+                <NavigationViewItem Tag="Automation" Content="工程软件自动化">
+                    <NavigationViewItem.Icon>
+                        <FontIcon Glyph="&#xE90F;"/>
+                    </NavigationViewItem.Icon>
+                </NavigationViewItem>
+
+                <NavigationViewItem Tag="Convert" Content="文件转换">
+                    <NavigationViewItem.Icon>
+                        <SymbolIcon Symbol="TwoPage"/>
+                    </NavigationViewItem.Icon>
+                </NavigationViewItem>
+
+                <NavigationViewItem Tag="StreamDownload" Content="流媒体下载">
+                    <NavigationViewItem.Icon>
+                        <SymbolIcon Symbol="Download"/>
+                    </NavigationViewItem.Icon>
+                </NavigationViewItem>
+
+                <NavigationViewItem Tag="EpubReader" Content="EPUB 阅读器">
+                    <NavigationViewItem.Icon>
+                        <SymbolIcon Symbol="OpenFile"/>
+                    </NavigationViewItem.Icon>
+                </NavigationViewItem>
+
+                <NavigationViewItem Tag="Vpn" Content="VPN">
+                    <NavigationViewItem.Icon>
+                        <SymbolIcon Symbol="Globe"/>
+                    </NavigationViewItem.Icon>
+                </NavigationViewItem>
+
+                <NavigationViewItem Tag="JiYuTrainer" Content="极域教室控制">
+                    <NavigationViewItem.Icon>
+                        <FontIcon Glyph="&#xE95F;"/>
+                    </NavigationViewItem.Icon>
+                </NavigationViewItem>
+
+                <NavigationViewItem Tag="MusicPlayer" Content="音乐播放器">
+                    <NavigationViewItem.Icon>
+                        <FontIcon Glyph="&#xE8D6;"/>
+                    </NavigationViewItem.Icon>
+                </NavigationViewItem>
+
+                <NavigationViewItem Tag="VideoPlayer" Content="视频播放器">
+                    <NavigationViewItem.Icon>
+                        <FontIcon Glyph="&#xE714;"/>
+                    </NavigationViewItem.Icon>
+                </NavigationViewItem>
+
+                <NavigationViewItem Tag="PdfViewer" Content="PDF 查看器">
+                    <NavigationViewItem.Icon>
+                        <FontIcon Glyph="&#xE8A5;"/>
+                    </NavigationViewItem.Icon>
+                </NavigationViewItem>
+
+                <!-- 内测人员解锁（设置页输入口令）后可见：带扩展的 WebView2 测试浏览器 -->
+                <NavigationViewItem x:Name="EdgeExtensionTestItem" Tag="EdgeExtensionTest"
+                                    Content="Edge扩展引入测试" Visibility="Collapsed">
+                    <NavigationViewItem.Icon>
+                        <FontIcon Glyph="&#xE774;"/>
+                    </NavigationViewItem.Icon>
+                </NavigationViewItem>
+            </NavigationView.MenuItems>
+
+            <NavigationView.FooterMenuItems>
+                <NavigationViewItem Tag="Settings" Content="设置">
+                    <NavigationViewItem.Icon>
+                        <SymbolIcon Symbol="Setting"/>
+                    </NavigationViewItem.Icon>
+                </NavigationViewItem>
+                <NavigationViewItem Tag="About" Content="关于软件">
+                    <NavigationViewItem.Icon>
+                        <FontIcon Glyph="&#xE897;"/>
+                    </NavigationViewItem.Icon>
+                </NavigationViewItem>
+            </NavigationView.FooterMenuItems>
+
+            <NavigationView.Content>
+                <!-- 内容区：Frame；所有功能页均显示于此，避免多图层堆叠与 Z-index 混乱 -->
+                <Frame x:Name="ContentFrame" Background="{ThemeResource ApplicationPageBackgroundThemeBrush}"/>
+            </NavigationView.Content>
+        </NavigationView>
+
+        <!-- 隐藏 WebShell 容器：后台常驻 WebView2 状态（不显示、不拦截点击）。
+             重要：必须保留 1x1 的最小可视尺寸而不是 0x0，否则 WebView2 底层 HWND/视觉层初始化时尺寸为 0，
+             后续即使 Attach 到可视容器也不会重新触发像素渲染（WinUI 3 + WebView2 的已知坑）。
+             通过 Opacity=0 + IsHitTestVisible=False + 极小尺寸实现"视觉隐藏但内核正常布局"。 -->
+        <Border x:Name="HiddenWebHost"
+                x:FieldModifier="internal"
+                MinWidth="1" MinHeight="1"
+                Width="1" Height="1"
+                HorizontalAlignment="Left"
+                VerticalAlignment="Top"
+                Visibility="Visible"
+                Opacity="0"
+                IsHitTestVisible="False">
+            <!-- 初始必须 Visible（WebView2 内核首次初始化要求非 0 可视尺寸）；归还隐藏由代码在 Detach 后置 Collapsed -->
+            <controls:WebShell x:Name="WebShellLayer" x:FieldModifier="internal" MinWidth="1" MinHeight="1"/>
+        </Border>
+
+        <!-- 启动覆盖层（Z-index 最高） -->
+        <local:SplashOverlay x:Name="SplashLayer"/>
+    </Grid>
+</Window>

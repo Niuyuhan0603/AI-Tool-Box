@@ -1,0 +1,114 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Page
+    x:Class="AI_Tool_Box.Views.VpnPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:controls="using:Microsoft.UI.Xaml.Controls"
+    xmlns:vm="using:AI_Tool_Box.ViewModels">
+
+    <!-- 可滑动：节点列表较多时整体滚动查看 -->
+    <ScrollViewer HorizontalScrollMode="Disabled" VerticalScrollMode="Auto" VerticalScrollBarVisibility="Auto">
+        <Grid Padding="20" RowSpacing="12" MaxWidth="760" HorizontalAlignment="Stretch">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+            </Grid.RowDefinitions>
+
+            <!-- Row 0 标题 -->
+            <StackPanel Grid.Row="0" Spacing="2">
+                <TextBlock Text="VPN" Style="{StaticResource TitleTextBlockStyle}"/>
+                <TextBlock Text="加密代理节点 · 一键连接 · 浏览器即时生效 · 连接期间自动统计流量"
+                           Style="{StaticResource CaptionTextBlockStyle}"
+                           Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+            </StackPanel>
+
+            <!-- Row 1 连接控制 -->
+            <Border Grid.Row="1" Padding="14" CornerRadius="8"
+                    Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                    BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1">
+                <StackPanel Spacing="10">
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <TextBlock Text="连接状态：" Style="{StaticResource BodyStrongTextBlockStyle}"/>
+                        <TextBlock Text="{x:Bind ViewModel.ConnectionInfo, Mode=OneWay}" FontFamily="Consolas"/>
+                    </StackPanel>
+
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <ComboBox Header="位置" MinWidth="220"
+                                  ItemsSource="{x:Bind ViewModel.Locations}"
+                                  SelectedItem="{x:Bind ViewModel.SelectedLocation, Mode=TwoWay}"
+                                  DisplayMemberPath="Display"/>
+                        <ComboBox Header="节点（青=可连接 · 白=不可达 · 灰=未扫描）" MinWidth="320"
+                                  ItemsSource="{x:Bind ViewModel.SelectedLocation.Hosts, Mode=OneWay}"
+                                  SelectedItem="{x:Bind ViewModel.SelectedLocation.SelectedRow, Mode=TwoWay}">
+                            <ComboBox.ItemTemplate>
+                                <DataTemplate x:DataType="vm:VpnHostRow">
+                                    <StackPanel Orientation="Horizontal" Spacing="8">
+                                        <Ellipse Width="10" Height="10" VerticalAlignment="Center"
+                                                 Fill="{x:Bind StatusBrush, Mode=OneWay}"/>
+                                        <TextBlock Text="{x:Bind Host, Mode=OneWay}" FontFamily="Consolas"/>
+                                    </StackPanel>
+                                </DataTemplate>
+                            </ComboBox.ItemTemplate>
+                        </ComboBox>
+                    </StackPanel>
+
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <Button Content="{x:Bind ViewModel.ConnectButtonText, Mode=OneWay}"
+                                Style="{StaticResource AccentButtonStyle}" MinWidth="120"
+                                Command="{x:Bind ViewModel.ConnectCommand}" IsEnabled="{x:Bind ViewModel.IsIdle, Mode=OneWay}"/>
+                        <Button Content="测试该节点" Command="{x:Bind ViewModel.TestCommand}" IsEnabled="{x:Bind ViewModel.IsIdle, Mode=OneWay}"/>
+                        <Button Content="一键扫描所有可用节点" Command="{x:Bind ViewModel.ScanAllCommand}" IsEnabled="{x:Bind ViewModel.IsIdle, Mode=OneWay}"/>
+                    </StackPanel>
+
+                    <!-- V2Ray 核心（VMess 节点必需）：自动探测 + 手动指定 -->
+                    <Grid ColumnSpacing="8">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Grid.Column="0" Text="{x:Bind ViewModel.CoreInfo, Mode=OneWay}"
+                                   FontSize="12" TextTrimming="CharacterEllipsis" TextWrapping="NoWrap"
+                                   VerticalAlignment="Center"
+                                   Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                        <Button Grid.Column="1" Content="指定 v2ray.exe…"
+                                Command="{x:Bind ViewModel.BrowseCoreCommand}"/>
+                    </Grid>
+
+                    <TextBlock Text="{x:Bind ViewModel.Status, Mode=OneWay}" TextWrapping="Wrap"
+                               Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                    <TextBlock Text="{x:Bind ViewModel.TestResult, Mode=OneWay}" TextWrapping="Wrap"
+                               FontFamily="Consolas" FontSize="12"/>
+                </StackPanel>
+            </Border>
+
+            <!-- Row 2 节点清单（含扫描状态圆点） -->
+            <Border Grid.Row="2" Padding="14" CornerRadius="8"
+                    Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                    BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1">
+                <StackPanel Spacing="6">
+                    <TextBlock Text="全部节点" Style="{StaticResource SubtitleTextBlockStyle}"/>
+                    <TextBlock FontFamily="Consolas" FontSize="12" TextWrapping="Wrap"
+                               Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                               Text="{x:Bind ViewModel.NodeSummary, Mode=OneWay}"/>
+                    <controls:ItemsRepeater ItemsSource="{x:Bind ViewModel.AllHosts, Mode=OneWay}">
+                        <controls:ItemsRepeater.Layout>
+                            <controls:StackLayout Spacing="2"/>
+                        </controls:ItemsRepeater.Layout>
+                        <controls:ItemsRepeater.ItemTemplate>
+                            <DataTemplate x:DataType="vm:VpnHostRow">
+                                <StackPanel Orientation="Horizontal" Spacing="8" Padding="4,2"
+                                            Background="{ThemeResource SubtleFillColorTransparentBrush}" CornerRadius="4">
+                                    <Ellipse Width="10" Height="10" VerticalAlignment="Center"
+                                             Fill="{x:Bind StatusBrush, Mode=OneWay}"/>
+                                    <TextBlock Text="{x:Bind Host, Mode=OneWay}" FontFamily="Consolas" FontSize="12"
+                                               VerticalAlignment="Center"/>
+                                </StackPanel>
+                            </DataTemplate>
+                        </controls:ItemsRepeater.ItemTemplate>
+                    </controls:ItemsRepeater>
+                </StackPanel>
+            </Border>
+        </Grid>
+    </ScrollViewer>
+</Page>

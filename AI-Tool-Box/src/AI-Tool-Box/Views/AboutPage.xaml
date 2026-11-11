@@ -1,0 +1,76 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Page
+    x:Class="AI_Tool_Box.Views.AboutPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <!-- 关于软件：Logo / 版本 / 功能简介 / 赞助码（微信 + 支付宝） -->
+    <Grid Background="{ThemeResource ApplicationPageBackgroundThemeBrush}">
+        <ScrollViewer VerticalScrollBarVisibility="Auto">
+            <StackPanel MaxWidth="760" HorizontalAlignment="Center" Spacing="18" Margin="32,28">
+                <!-- 头部 -->
+                <StackPanel Orientation="Horizontal" Spacing="18">
+                    <Border Width="72" Height="72" CornerRadius="14"
+                            Background="#1A2733" BorderBrush="#33FFFFFF" BorderThickness="1">
+                        <Image x:Name="LogoImage" Stretch="Uniform" Margin="10"/>
+                    </Border>
+                    <StackPanel VerticalAlignment="Center" Spacing="4">
+                        <TextBlock Text="AI-Tool-Box" FontSize="30" FontWeight="SemiBold" Foreground="#F0FBFF"/>
+                        <TextBlock x:Name="VersionText" FontSize="13" Foreground="#9FB6C6"/>
+                        <TextBlock Text="集 网址导航 · AI 辅助 · 本地工具 于一体的 Windows 桌面工具箱"
+                                   FontSize="13" Foreground="#7E96A8"/>
+                    </StackPanel>
+                </StackPanel>
+
+                <!-- 功能特性 -->
+                <Border Background="#141B24" BorderBrush="#22FFFFFF" BorderThickness="1" CornerRadius="10" Padding="18,14">
+                    <StackPanel Spacing="8">
+                        <TextBlock Text="功能特性" FontSize="16" FontWeight="SemiBold" Foreground="#E8F6FF"/>
+                        <TextBlock TextWrapping="Wrap" LineHeight="24" FontSize="13" Foreground="#9FB6C6">
+                            <Run Text="网页："/>多标签网址导航、书签/历史/下载、网页内链接自动新标签打开
+                            <LineBreak/>
+                            <Run Text="AI："/>右侧栏 AI 辅助（OpenAI / Anthropic / Ollama）、AI 页面内答题、局域网 AI 服务
+                            <LineBreak/>
+                            <Run Text="工具："/>本地 OCR（LiteParse2.0 引擎，图片/PDF + 带格式识别，11 种常用语言）、PDF 查看器（翻页/缩放/批注/裁剪/合并）、EPUB 阅读器
+                            <LineBreak/>
+                            <Run Text="下载："/>视频/音频嗅探器（IDM 同款算法）、M3U8 下载、文件转换（Word↔PDF / MP4 / 直链下载）
+                            <LineBreak/>
+                            <Run Text="网络："/>VPN（内置免费节点）、同局域网传文件（LocalSend 协议）、题库共享
+                            <LineBreak/>
+                            <Run Text="娱乐："/>音乐播放器（歌词/曲绘/收藏/三种播放模式）、极域教室控制
+                            <LineBreak/>
+                            <Run Text="系统："/>缩小至托盘（后台任务不中断）、Edge 扩展引入测试
+                        </TextBlock>
+                    </StackPanel>
+                </Border>
+
+                <!-- 赞助支持 -->
+                <Border Background="#141B24" BorderBrush="#22FFFFFF" BorderThickness="1" CornerRadius="10" Padding="18,14">
+                    <StackPanel Spacing="12">
+                        <TextBlock Text="赞助支持" FontSize="16" FontWeight="SemiBold" Foreground="#E8F6FF"/>
+                        <TextBlock Text="如果这款工具箱对你有帮助，欢迎扫码赞助，支持持续更新（微信 / 支付宝均可）。"
+                                   FontSize="13" Foreground="#9FB6C6" TextWrapping="Wrap"/>
+                        <StackPanel Orientation="Horizontal" Spacing="28">
+                            <StackPanel Spacing="6">
+                                <Border Background="White" CornerRadius="8" Padding="8">
+                                    <Image x:Name="WechatImage" Width="180" Height="180" Stretch="Uniform"/>
+                                </Border>
+                                <TextBlock Text="微信支付" FontSize="12" Foreground="#7E96A8" HorizontalAlignment="Center"/>
+                            </StackPanel>
+                            <StackPanel Spacing="6">
+                                <Border Background="White" CornerRadius="8" Padding="8">
+                                    <Image x:Name="AlipayImage" Width="180" Height="180" Stretch="Uniform"/>
+                                </Border>
+                                <TextBlock Text="支付宝" FontSize="12" Foreground="#7E96A8" HorizontalAlignment="Center"/>
+                            </StackPanel>
+                        </StackPanel>
+                    </StackPanel>
+                </Border>
+
+                <TextBlock x:Name="FooterText"
+                           Text="© 2026 AI-Tool-Box · WinUI 3 · 本地优先，离线可用"
+                           FontSize="12" Foreground="#5A6B7A" HorizontalAlignment="Center"/>
+            </StackPanel>
+        </ScrollViewer>
+    </Grid>
+</Page>

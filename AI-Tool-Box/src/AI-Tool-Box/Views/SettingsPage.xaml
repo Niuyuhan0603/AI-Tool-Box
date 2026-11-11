@@ -1,0 +1,410 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Page
+    x:Class="AI_Tool_Box.Views.SettingsPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:vm="using:AI_Tool_Box.ViewModels"
+    xmlns:controls="using:Microsoft.UI.Xaml.Controls">
+
+    <Grid Padding="20" Background="{ThemeResource ApplicationPageBackgroundThemeBrush}">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+
+        <!-- 标题栏 -->
+        <StackPanel Grid.Row="0" Spacing="2" Margin="0,0,0,12">
+            <TextBlock Text="设置" Style="{StaticResource TitleTextBlockStyle}"/>
+            <TextBlock Text="集中控制面板 · 用量统计 · 线程配置 · 路径与密钥管理"
+                       Style="{StaticResource CaptionTextBlockStyle}"
+                       Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+            <TextBlock Text="{x:Bind ViewModel.Status, Mode=OneWay}"
+                       Style="{StaticResource BodyTextBlockStyle}"
+                       Foreground="{ThemeResource AccentFillColorDefaultBrush}"
+                       TextWrapping="Wrap"/>
+        </StackPanel>
+
+        <!-- 滚动内容区 -->
+        <ScrollViewer Grid.Row="1" Padding="0,0,8,0">
+            <StackPanel Spacing="16" MaxWidth="760">
+
+                <!-- ===== 常规区 ===== -->
+                <controls:Expander Header="常规" IsExpanded="True"
+                                   HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch">
+                    <StackPanel Spacing="8">
+                        <TextBlock Text="关闭主窗口（X）时" Style="{StaticResource BodyStrongTextBlockStyle}"/>
+                        <RadioButton x:Name="CloseToTrayRadio"
+                                     Content="缩小至托盘（默认，进程与后台任务不停止，点击托盘图标恢复）"
+                                     GroupName="CloseBehavior" Checked="OnCloseBehaviorChecked"/>
+                        <RadioButton x:Name="CloseToExitRadio"
+                                     Content="直接退出程序"
+                                     GroupName="CloseBehavior" Checked="OnCloseBehaviorChecked"/>
+                    </StackPanel>
+                </controls:Expander>
+
+                <!-- ===== 用量统计区 ===== -->
+                <controls:Expander Header="用量统计" IsExpanded="True"
+                                   HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch">
+                    <Grid RowSpacing="8" ColumnSpacing="12" HorizontalAlignment="Stretch">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                        </Grid.RowDefinitions>
+
+                        <Border Grid.Row="0" Grid.Column="0" Padding="10,8" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}" CornerRadius="8">
+                            <StackPanel Spacing="2">
+                                <TextBlock Text="API 调用" Style="{StaticResource CaptionTextBlockStyle}" Opacity="0.7"/>
+                                <TextBlock Text="{x:Bind ViewModel.TotalApiCalls, Mode=OneWay}" Style="{StaticResource BodyStrongTextBlockStyle}"/>
+                            </StackPanel>
+                        </Border>
+                        <Border Grid.Row="0" Grid.Column="1" Padding="10,8" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}" CornerRadius="8">
+                            <StackPanel Spacing="2">
+                                <TextBlock Text="总 Token" Style="{StaticResource CaptionTextBlockStyle}" Opacity="0.7"/>
+                                <TextBlock Text="{x:Bind ViewModel.TotalAllTokens, Mode=OneWay}" Style="{StaticResource BodyStrongTextBlockStyle}"/>
+                            </StackPanel>
+                        </Border>
+                        <Border Grid.Row="0" Grid.Column="2" Padding="10,8" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}" CornerRadius="8">
+                            <StackPanel Spacing="2">
+                                <TextBlock Text="最后更新" Style="{StaticResource CaptionTextBlockStyle}" Opacity="0.7"/>
+                                <TextBlock Text="{x:Bind ViewModel.LastUpdatedUtc, Mode=OneWay}" Style="{StaticResource BodyTextBlockStyle}"/>
+                            </StackPanel>
+                        </Border>
+
+                        <Border Grid.Row="1" Grid.Column="0" Padding="10,8" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}" CornerRadius="8">
+                            <StackPanel Spacing="2">
+                                <TextBlock Text="Prompt Token" Style="{StaticResource CaptionTextBlockStyle}" Opacity="0.7"/>
+                                <TextBlock Text="{x:Bind ViewModel.TotalPromptTokens, Mode=OneWay}" Style="{StaticResource BodyTextBlockStyle}"/>
+                            </StackPanel>
+                        </Border>
+                        <Border Grid.Row="1" Grid.Column="1" Padding="10,8" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}" CornerRadius="8">
+                            <StackPanel Spacing="2">
+                                <TextBlock Text="Completion Token" Style="{StaticResource CaptionTextBlockStyle}" Opacity="0.7"/>
+                                <TextBlock Text="{x:Bind ViewModel.TotalCompletionTokens, Mode=OneWay}" Style="{StaticResource BodyTextBlockStyle}"/>
+                            </StackPanel>
+                        </Border>
+                        <Border Grid.Row="1" Grid.Column="2" Padding="10,8" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}" CornerRadius="8">
+                            <StackPanel Spacing="2">
+                                <TextBlock Text="VPN 流量 ↑↓" Style="{StaticResource CaptionTextBlockStyle}" Opacity="0.7"/>
+                                <TextBlock Style="{StaticResource BodyTextBlockStyle}">
+                                    <Run Text="{x:Bind ViewModel.VpnBytesSent, Mode=OneWay}"/>
+                                    <Run Text=" / "/>
+                                    <Run Text="{x:Bind ViewModel.VpnBytesReceived, Mode=OneWay}"/>
+                                </TextBlock>
+                            </StackPanel>
+                        </Border>
+
+                        <!-- 按模型分项 -->
+                        <TextBlock Grid.Row="2" Grid.ColumnSpan="3" Text="按模型分项" Style="{StaticResource BodyStrongTextBlockStyle}" Margin="0,4,0,0"/>
+                        <controls:ItemsRepeater Grid.Row="3" Grid.ColumnSpan="3" ItemsSource="{x:Bind ViewModel.TokenRows, Mode=OneWay}">
+                            <controls:ItemsRepeater.Layout>
+                                <controls:StackLayout Spacing="4"/>
+                            </controls:ItemsRepeater.Layout>
+                            <controls:ItemsRepeater.ItemTemplate>
+                                <DataTemplate x:DataType="vm:TokenUsageRow">
+                                    <Grid ColumnSpacing="12" Padding="8,4" Background="{ThemeResource SubtleFillColorTransparentBrush}" CornerRadius="6">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="2*"/>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="*"/>
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Grid.Column="0" Text="{x:Bind Model, Mode=OneWay}" FontFamily="Consolas"/>
+                                        <TextBlock Grid.Column="1" Text="{x:Bind PromptTokens, Mode=OneWay}"/>
+                                        <TextBlock Grid.Column="2" Text="{x:Bind CompletionTokens, Mode=OneWay}"/>
+                                        <TextBlock Grid.Column="3" Text="{x:Bind TotalTokens, Mode=OneWay}"/>
+                                        <TextBlock Grid.Column="4" Text="{x:Bind Calls, Mode=OneWay}"/>
+                                    </Grid>
+                                </DataTemplate>
+                            </controls:ItemsRepeater.ItemTemplate>
+                        </controls:ItemsRepeater>
+
+                        <StackPanel Grid.Row="4" Grid.ColumnSpan="3" Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right" Margin="0,4,0,0">
+                            <Button Content="刷新" Click="OnRefreshUsageClick"/>
+                            <Button Content="重置统计" Click="OnResetUsageClick" Style="{StaticResource AccentButtonStyle}"/>
+                        </StackPanel>
+                    </Grid>
+                </controls:Expander>
+
+                <!-- ===== 线程配置区 ===== -->
+                <controls:Expander Header="线程与并发配置" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch">
+                    <StackPanel Spacing="10">
+                        <StackPanel Spacing="2">
+                            <TextBlock Text="嗅探器并发过滤" Style="{StaticResource BodyTextBlockStyle}"/>
+                            <Slider Minimum="1" Maximum="{x:Bind ViewModel.ProcessorCount}"
+                                    Value="{x:Bind ViewModel.SnifferThreadCount, Mode=TwoWay}"
+                                    TickFrequency="1" StepFrequency="1" SnapsTo="Ticks"/>
+                        </StackPanel>
+                        <StackPanel Spacing="2">
+                            <TextBlock Text="文件转换并发任务" Style="{StaticResource BodyTextBlockStyle}"/>
+                            <Slider Minimum="1" Maximum="{x:Bind ViewModel.ProcessorCount}"
+                                    Value="{x:Bind ViewModel.TransformThreadCount, Mode=TwoWay}"
+                                    TickFrequency="1" StepFrequency="1" SnapsTo="Ticks"/>
+                        </StackPanel>
+                        <StackPanel Spacing="2">
+                            <TextBlock Text="OCR 并发线程（LiteParse2.0）" Style="{StaticResource BodyTextBlockStyle}"/>
+                            <Slider Minimum="1" Maximum="{x:Bind ViewModel.ProcessorCount}"
+                                    Value="{x:Bind ViewModel.OcrThreadCount, Mode=TwoWay}"
+                                    TickFrequency="1" StepFrequency="1" SnapsTo="Ticks"/>
+                        </StackPanel>
+                        <StackPanel Spacing="2">
+                            <TextBlock Text="局域网传输并发流" Style="{StaticResource BodyTextBlockStyle}"/>
+                            <Slider Minimum="1" Maximum="{x:Bind ViewModel.MaxLanThreads}"
+                                    Value="{x:Bind ViewModel.LanTransferThreadCount, Mode=TwoWay}"
+                                    TickFrequency="1" StepFrequency="1" SnapsTo="Ticks"/>
+                        </StackPanel>
+                        <StackPanel Spacing="2">
+                            <TextBlock Text="下载分片并发" Style="{StaticResource BodyTextBlockStyle}"/>
+                            <Slider Minimum="1" Maximum="{x:Bind ViewModel.MaxDownloadThreads}"
+                                    Value="{x:Bind ViewModel.DownloadThreadCount, Mode=TwoWay}"
+                                    TickFrequency="1" StepFrequency="1" SnapsTo="Ticks"/>
+                        </StackPanel>
+                        <StackPanel Spacing="2">
+                            <TextBlock Text="VPN 默认节点标识（VPN 模块就绪后生效）" Style="{StaticResource BodyTextBlockStyle}"/>
+                            <TextBox Text="{x:Bind ViewModel.VpnDefaultNode, Mode=TwoWay}" PlaceholderText="未设置"/>
+                        </StackPanel>
+                    </StackPanel>
+                </controls:Expander>
+
+                <!-- ===== FFmpeg 路径 ===== -->
+                <controls:Expander Header="FFmpeg 路径" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch">
+                    <StackPanel Spacing="8">
+                        <TextBox Header="当前路径" Text="{x:Bind ViewModel.FfmpegPath, Mode=OneWay}" IsReadOnly="True"
+                                 PlaceholderText="未配置"/>
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <Button Content="浏览选择 ffmpeg.exe…" Click="OnPickFfmpegClick"/>
+                            <Button Content="清除自定义路径" Click="OnClearFfmpegClick"/>
+                        </StackPanel>
+                    </StackPanel>
+                </controls:Expander>
+
+                <!-- ===== AI API 配置（主流厂商预填充：选厂商 → 选模型 → 填 Key） ===== -->
+                <controls:Expander Header="AI API 配置" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch" IsExpanded="True">
+                    <StackPanel Spacing="8">
+                        <TextBlock Text="先选厂商（已预填基地址与模型列表），再选具体模型，最后粘贴该厂商控制台的 API-Key 即可，无需手填网址。"
+                                   Style="{StaticResource CaptionTextBlockStyle}"
+                                   Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                   TextWrapping="Wrap"/>
+                        <ComboBox Header="厂商 / 服务"
+                                  ItemsSource="{x:Bind ViewModel.AssistPresets, Mode=OneWay}"
+                                  SelectedItem="{x:Bind ViewModel.SelectedAssistPreset, Mode=TwoWay}"
+                                  DisplayMemberPath="DisplayName"
+                                  HorizontalAlignment="Stretch"/>
+                        <ComboBox Header="模型（同一厂商可能有多个，需明确选择）"
+                                  ItemsSource="{x:Bind ViewModel.PresetModels, Mode=OneWay}"
+                                  Text="{x:Bind ViewModel.PresetModel, Mode=TwoWay}"
+                                  IsEditable="True"
+                                  HorizontalAlignment="Stretch"/>
+                        <PasswordBox Header="API-Key"
+                                     Password="{x:Bind ViewModel.PresetKeyInput, Mode=TwoWay}"
+                                     PlaceholderText="粘贴该厂商控制台生成的 Key（本地 DPAPI 加密保存）"/>
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <Button Content="保存并应用" Style="{StaticResource AccentButtonStyle}"
+                                    Command="{x:Bind ViewModel.AddFromPresetCommand}"/>
+                        </StackPanel>
+                        <TextBlock Text="{x:Bind ViewModel.PresetHint, Mode=OneWay}"
+                                   Style="{StaticResource CaptionTextBlockStyle}"
+                                   Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                   TextWrapping="Wrap"/>
+                    </StackPanel>
+                </controls:Expander>
+
+                <!-- ===== 右侧栏AI辅助 ===== -->
+                <controls:Expander Header="右侧栏AI辅助（提供商档案 + API-Key）" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch">
+                    <StackPanel Spacing="8">
+                        <TextBlock Text="在此为各 AI 提供商填写 API-Key（DPAPI 加密存储）。未填写 Key 时在侧栏发起请求会弹窗提示。"
+                                   Style="{StaticResource CaptionTextBlockStyle}"
+                                   Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                   TextWrapping="Wrap"/>
+
+                        <TextBlock Text="厂商与模型请在上方「AI API 配置」中选择并保存；这里用于查看/微调已保存的提供商档案与 Key。"
+                                   Style="{StaticResource CaptionTextBlockStyle}"
+                                   Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                   TextWrapping="Wrap"/>
+
+                        <ComboBox Header="提供商档案"
+                                  ItemsSource="{x:Bind ViewModel.AssistProfiles, Mode=OneWay}"
+                                  SelectedItem="{x:Bind ViewModel.SelectedAssistProfile, Mode=TwoWay}"
+                                  DisplayMemberPath="DisplayName"
+                                  HorizontalAlignment="Stretch"/>
+                        <TextBox Header="显示名称" Text="{x:Bind ViewModel.SelectedAssistProfile.DisplayName, Mode=TwoWay}"
+                                 PlaceholderText="如 DeepSeek / 自定义中转"/>
+                        <TextBox Header="API 基地址" Text="{x:Bind ViewModel.AssistBaseUrl, Mode=TwoWay}"
+                                 PlaceholderText="OpenAI 兼容含 /v1；Anthropic 填根地址"/>
+                        <TextBox Header="默认模型" Text="{x:Bind ViewModel.AssistModel, Mode=TwoWay}"
+                                 PlaceholderText="如 gpt-4o-mini / deepseek-chat / claude-sonnet-4-5"/>
+                        <TextBox Header="会话 SessionID" Text="{x:Bind ViewModel.AssistSessionId, Mode=TwoWay}"
+                                 PlaceholderText="用于区分/追踪会话；留空则自动生成"/>
+                        <TextBlock Text="SessionID 会随请求发送（OpenAI 走 user 字段、Anthropic 走 metadata.user_id，并附加 X-Session-Id 头），便于厂商侧统计与排查。"
+                                   Style="{StaticResource CaptionTextBlockStyle}"
+                                   Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                   TextWrapping="Wrap"/>
+                        <CheckBox Content="免鉴权（本地服务，无需 API-Key，如 Ollama）"
+                                  IsChecked="{x:Bind ViewModel.AssistNoKeyRequired, Mode=TwoWay}"/>
+                        <PasswordBox Header="API-Key（未填写 = 留空）"
+                                     Password="{x:Bind ViewModel.AssistApiKeyInput, Mode=TwoWay}"
+                                     PlaceholderText="粘贴后点击“保存 Key”"/>
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <Button Content="保存 Key" Style="{StaticResource AccentButtonStyle}" Click="OnSaveAssistKeyClick"/>
+                            <Button Content="清除 Key" Command="{x:Bind ViewModel.ClearAssistKeyCommand}"/>
+                            <Button Content="保存档案修改" Command="{x:Bind ViewModel.SaveAssistProfileCommand}"/>
+                            <Button Content="新增提供商" Command="{x:Bind ViewModel.AddAssistProfileCommand}"/>
+                            <Button Content="删除该提供商" Command="{x:Bind ViewModel.RemoveAssistProfileCommand}"/>
+                        </StackPanel>
+                    </StackPanel>
+                </controls:Expander>
+
+                <!-- ===== 已保存的 API 信息与连通性测试 ===== -->
+                <controls:Expander Header="已保存的 API 信息（查看 + 连通性测试）"
+                                   HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch" IsExpanded="True">
+                    <StackPanel Spacing="8">
+                        <TextBlock Text="下表列出所有已填充的 API 配置（厂商 / 协议 / 基地址 / 模型 / Key 掩码）。添加 API 时会自动测试连通性，也可随时点击“测试连通性”复测。"
+                                   Style="{StaticResource CaptionTextBlockStyle}"
+                                   Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                   TextWrapping="Wrap"/>
+                        <controls:ItemsRepeater ItemsSource="{x:Bind ViewModel.ApiProfileRows, Mode=OneWay}"
+                                                ElementPrepared="OnApiRowPrepared">
+                            <controls:ItemsRepeater.Layout>
+                                <controls:StackLayout Spacing="6"/>
+                            </controls:ItemsRepeater.Layout>
+                            <controls:ItemsRepeater.ItemTemplate>
+                                <DataTemplate x:DataType="vm:ApiProfileRow">
+                                    <Border Padding="10,8" CornerRadius="8"
+                                            Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                                            BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                                            BorderThickness="1">
+                                        <Grid RowSpacing="4" ColumnSpacing="10">
+                                            <Grid.RowDefinitions>
+                                                <RowDefinition Height="Auto"/>
+                                                <RowDefinition Height="Auto"/>
+                                                <RowDefinition Height="Auto"/>
+                                            </Grid.RowDefinitions>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                            </Grid.ColumnDefinitions>
+
+                                            <StackPanel Grid.Row="0" Grid.Column="0" Orientation="Horizontal" Spacing="8">
+                                                <TextBlock Text="{x:Bind DisplayName, Mode=OneWay}" Style="{StaticResource BodyStrongTextBlockStyle}"/>
+                                                <TextBlock Text="{x:Bind KindLabel, Mode=OneWay}" Opacity="0.7" VerticalAlignment="Center"/>
+                                            </StackPanel>
+                                            <Button Grid.Row="0" Grid.Column="1" Grid.RowSpan="2"
+                                                    Content="测试连通性" Click="OnTestApiClick"/>
+                                            <TextBlock Grid.Row="1" Grid.Column="0" Text="{x:Bind BaseUrl, Mode=OneWay}"
+                                                       Style="{StaticResource CaptionTextBlockStyle}" TextWrapping="Wrap" Opacity="0.85"/>
+                                            <StackPanel Grid.Row="2" Grid.ColumnSpan="2" Spacing="2">
+                                                <TextBlock Text="{x:Bind Model, Mode=OneWay}" FontFamily="Consolas" FontSize="12"/>
+                                                <TextBlock Text="{x:Bind KeyMask, Mode=OneWay}" FontSize="12" Opacity="0.75"/>
+                                                <TextBlock Text="{x:Bind TestResult, Mode=OneWay}" FontSize="12"
+                                                           TextWrapping="Wrap"
+                                                           Foreground="{ThemeResource AccentFillColorDefaultBrush}"/>
+                                            </StackPanel>
+                                        </Grid>
+                                    </Border>
+                                </DataTemplate>
+                            </controls:ItemsRepeater.ItemTemplate>
+                        </controls:ItemsRepeater>
+                        <Button Content="刷新列表" Click="OnRefreshApiRowsClick"/>
+                    </StackPanel>
+                </controls:Expander>
+
+                <controls:Expander Header="内测人员" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch">
+                    <StackPanel Spacing="8">
+                        <!-- 未解锁：口令输入 -->
+                        <StackPanel Spacing="8"
+                                    Visibility="{x:Bind TesterLockedVis(ViewModel.IsTesterUnlocked), Mode=OneWay}">
+                            <TextBlock Text="此区域面向内测人员，输入口令解锁“导入Edge扩展”功能。"
+                                       Style="{StaticResource CaptionTextBlockStyle}"
+                                       Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                       TextWrapping="Wrap"/>
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                <TextBox Header="内测口令" MinWidth="220"
+                                         Text="{x:Bind ViewModel.TesterCodeInput, Mode=TwoWay}"
+                                         PlaceholderText="输入口令后点击解锁"/>
+                                <Button Content="解锁" Style="{StaticResource AccentButtonStyle}" VerticalAlignment="Bottom"
+                                        Command="{x:Bind ViewModel.UnlockTesterCommand}"/>
+                            </StackPanel>
+                        </StackPanel>
+
+                        <!-- 已解锁：导入 + 扩展列表 -->
+                        <StackPanel Spacing="8"
+                                    Visibility="{x:Bind TesterUnlockedVis(ViewModel.IsTesterUnlocked), Mode=OneWay}">
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                <Button Content="导入Edge扩展…" Click="OnImportExtensionClick" Style="{StaticResource AccentButtonStyle}"/>
+                            </StackPanel>
+                            <TextBlock Text="解锁后侧栏出现「Edge扩展引入测试」：以带扩展的 WebView2 浏览器打开。开关控制扩展是否装入该浏览器，调整后点击其页面「重载扩展」生效。"
+                                       Style="{StaticResource CaptionTextBlockStyle}"
+                                       Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                       TextWrapping="Wrap"/>
+                            <controls:ItemsRepeater ItemsSource="{x:Bind ViewModel.EdgeExtensions, Mode=OneWay}">
+                                <controls:ItemsRepeater.Layout>
+                                    <controls:StackLayout Spacing="4"/>
+                                </controls:ItemsRepeater.Layout>
+                                <controls:ItemsRepeater.ItemTemplate>
+                                    <DataTemplate x:DataType="vm:EdgeExtensionRow">
+                                        <Grid Padding="8,6" ColumnSpacing="10" CornerRadius="6"
+                                              Background="{ThemeResource SubtleFillColorTransparentBrush}">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="2*"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                            </Grid.ColumnDefinitions>
+                                            <StackPanel Grid.Column="0" Spacing="0" VerticalAlignment="Center">
+                                                <TextBlock Text="{x:Bind Name, Mode=OneWay}" Style="{StaticResource BodyStrongTextBlockStyle}"
+                                                           TextTrimming="CharacterEllipsis"/>
+                                                <TextBlock Text="{x:Bind InstallPath, Mode=OneWay}" FontFamily="Consolas" FontSize="11"
+                                                           Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                                           TextTrimming="CharacterEllipsis"/>
+                                            </StackPanel>
+                                            <ToggleSwitch Grid.Column="1" OnContent="启用" OffContent="禁用" MinWidth="0"
+                                                          IsOn="{x:Bind IsEnabled, Mode=TwoWay}"
+                                                          Toggled="OnExtensionToggle"/>
+                                            <Button Grid.Column="2" Content="删除" Click="OnRemoveExtensionClick"
+                                                    VerticalAlignment="Center"/>
+                                        </Grid>
+                                    </DataTemplate>
+                                </controls:ItemsRepeater.ItemTemplate>
+                            </controls:ItemsRepeater>
+                            <TextBlock Text="（尚未导入任何扩展）"
+                                       Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                       Visibility="{x:Bind EdgeEmptyVis(ViewModel.EdgeExtensions.Count), Mode=OneWay}"/>
+                        </StackPanel>
+                    </StackPanel>
+                </controls:Expander>
+
+                <!-- ===== 日志 ===== -->
+                <controls:Expander Header="日志" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch">
+                    <StackPanel Spacing="8">
+                        <TextBox Header="当前日志目录" Text="{x:Bind ViewModel.LogDirectory, Mode=OneWay}" IsReadOnly="True"/>
+                        <TextBlock Text="修改后立即生效（热重载），日志文件名：aitoolbox-日期.log，保留最近 14 天。"
+                                   Style="{StaticResource CaptionTextBlockStyle}"
+                                   Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                   TextWrapping="Wrap"/>
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <Button Content="浏览选择日志目录…" Click="OnPickLogDirClick" Style="{StaticResource AccentButtonStyle}"/>
+                            <Button Content="恢复默认目录" Click="OnClearLogDirClick"/>
+                            <Button Content="打开日志目录" Click="OnOpenLogDirClick"/>
+                        </StackPanel>
+                    </StackPanel>
+                </controls:Expander>
+
+                <!-- ===== 数据管理 ===== -->
+                <controls:Expander Header="数据管理" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch">
+                    <StackPanel Spacing="8">
+                        <Button Content="打开数据目录（%LOCALAPPDATA%\AI-Tool-Box）" Click="OnOpenDataDirClick"/>
+                        <Button Content="清除用量统计（usage.json）" Click="OnResetUsageClick"/>
+                    </StackPanel>
+                </controls:Expander>
+
+            </StackPanel>
+        </ScrollViewer>
+    </Grid>
+</Page>

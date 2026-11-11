@@ -1,0 +1,101 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Page
+    x:Class="AI_Tool_Box.Views.StreamDownloadPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:controls="using:Microsoft.UI.Xaml.Controls"
+    xmlns:vm="using:AI_Tool_Box.ViewModels"
+    xmlns:conv="using:AI_Tool_Box.Converters">
+
+    <Page.Resources>
+        <conv:BoolToStringConverter x:Key="RunningText" TrueValue="下载中…请稍候" FalseValue="开始下载"/>
+        <conv:ProgressToPercentConverter x:Key="ProgressPct"/>
+    </Page.Resources>
+
+    <!-- 整页上下滚动：小窗口下所有卡片均可滑动查看 -->
+    <ScrollViewer Background="{ThemeResource ApplicationPageBackgroundThemeBrush}"
+                  HorizontalScrollMode="Disabled"
+                  VerticalScrollMode="Auto"
+                  VerticalScrollBarVisibility="Auto">
+        <Grid Padding="16" RowSpacing="8">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+            </Grid.RowDefinitions>
+
+            <!-- 标题 -->
+            <StackPanel Grid.Row="0" Orientation="Horizontal" Spacing="12">
+                <TextBlock Text="流媒体 / 直链下载" FontSize="24" FontWeight="Bold" VerticalAlignment="Center"/>
+                <TextBlock Text="（HTTP(S) 直链分块并发 + m3u8 分片并发下载）" Opacity="0.8" VerticalAlignment="Center"/>
+            </StackPanel>
+
+            <!-- URL 输入卡片 -->
+            <Border Grid.Row="1"
+                    Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                    BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                    BorderThickness="1" CornerRadius="8" Padding="12" Margin="0,8">
+                <StackPanel Spacing="8">
+                    <TextBox Text="{x:Bind ViewModel.DownloadUrl, Mode=TwoWay}"
+                             PlaceholderText="输入下载链接：HTTP(S) 直链 或 .m3u8 地址"
+                             Header="下载 URL"
+                             AcceptsReturn="False"/>
+                    <Grid ColumnSpacing="16">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+                        <NumberBox Grid.Column="0" Header="HTTP 分块并发"
+                                   Value="{x:Bind ViewModel.HttpConcurrency, Mode=TwoWay}"
+                                   Minimum="1" Maximum="1024" SmallChange="8"/>
+                        <NumberBox Grid.Column="1" Header="m3u8 分片并发"
+                                   Value="{x:Bind ViewModel.M3u8Concurrency, Mode=TwoWay}"
+                                   Minimum="1" Maximum="1024" SmallChange="8"/>
+                    </Grid>
+                    <TextBlock Opacity="0.7" FontSize="11">提示：m3u8 会自动复用「媒体嗅探器」的下载器（支持分片并发、AES-128 预留）。</TextBlock>
+                </StackPanel>
+            </Border>
+
+            <!-- 输出文件卡片 -->
+            <Border Grid.Row="2"
+                    Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                    BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                    BorderThickness="1" CornerRadius="8" Padding="12" Margin="0,8">
+                <Grid ColumnSpacing="8">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+                    <TextBox Grid.Column="0"
+                             Text="{x:Bind ViewModel.OutputPath, Mode=TwoWay}"
+                             PlaceholderText="输出文件路径…（留空则自动保存到 下载 目录）" Header="输出文件"/>
+                    <Button Grid.Column="1" Content="另存为…" Command="{x:Bind ViewModel.PickOutputFileCommand}" VerticalAlignment="Bottom"/>
+                </Grid>
+            </Border>
+
+            <!-- 执行 -->
+            <Grid Grid.Row="3" ColumnSpacing="12" Margin="0,8">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+                <Button Grid.Column="0"
+                        Content="{x:Bind ViewModel.IsBusy, Mode=OneWay, Converter={StaticResource RunningText}}"
+                        Command="{x:Bind ViewModel.RunCommand}"
+                        Style="{StaticResource AccentButtonStyle}"
+                        MinWidth="120"/>
+                <ProgressBar Grid.Column="1" Value="{x:Bind ViewModel.Progress, Mode=OneWay}" Minimum="0" Maximum="1" Height="8" VerticalAlignment="Center"/>
+                <TextBlock Grid.Column="2" Text="{x:Bind ViewModel.Progress, Mode=OneWay, Converter={StaticResource ProgressPct}}" VerticalAlignment="Center" MinWidth="60" TextAlignment="Right"/>
+            </Grid>
+
+            <!-- 状态 -->
+            <TextBlock Grid.Row="4"
+                       Text="{x:Bind ViewModel.Status, Mode=OneWay}"
+                       TextWrapping="Wrap"
+                       Opacity="0.85" Margin="0,6"/>
+        </Grid>
+    </ScrollViewer>
+</Page>

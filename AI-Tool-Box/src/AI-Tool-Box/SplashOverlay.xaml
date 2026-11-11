@@ -1,0 +1,195 @@
+<?xml version="1.0" encoding="utf-8"?>
+<UserControl
+    x:Class="AI_Tool_Box.SplashOverlay"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <!--
+        启动覆盖层：SplashScreen.png 居中展示（80% 尺寸）；
+        下方播放"键线式苯环"绘制动画：
+          1) 外圈六边形逐边顺时针绘制（顶点起笔：上→右上→右下→下→左下→左上→回顶点）；
+          2) 内部三根短双键线依次顺时针浮现（平行于右上边 / 下边 / 左边）；
+        无填充、无内圆，纯键线式；颜色与 SplashScreen.png 青蓝部分一致（#17A2B8）。
+        全部完成后由代码淡出并置 Collapsed。
+    -->
+    <UserControl.Resources>
+        <!-- 苯环主色：与 SplashScreen.png 青蓝部分一致 -->
+        <SolidColorBrush x:Key="RingColor" Color="#17A2B8"/>
+
+        <Storyboard x:Name="SplashStoryboard">
+
+            <!-- Logo 卡片：缩放淡入 -->
+            <DoubleAnimation Storyboard.TargetName="LogoBorder"
+                             Storyboard.TargetProperty="Opacity"
+                             From="0" To="1" Duration="0:0:0.45"/>
+            <DoubleAnimation Storyboard.TargetName="LogoScale"
+                             Storyboard.TargetProperty="ScaleX"
+                             From="0.86" To="1" Duration="0:0:0.5">
+                <DoubleAnimation.EasingFunction>
+                    <BackEase Amplitude="0.25" EasingMode="EaseOut"/>
+                </DoubleAnimation.EasingFunction>
+            </DoubleAnimation>
+            <DoubleAnimation Storyboard.TargetName="LogoScale"
+                             Storyboard.TargetProperty="ScaleY"
+                             From="0.86" To="1" Duration="0:0:0.5">
+                <DoubleAnimation.EasingFunction>
+                    <BackEase Amplitude="0.25" EasingMode="EaseOut"/>
+                </DoubleAnimation.EasingFunction>
+            </DoubleAnimation>
+
+            <!-- 标题淡入 -->
+            <DoubleAnimation Storyboard.TargetName="TitleText"
+                             Storyboard.TargetProperty="Opacity"
+                             From="0" To="1" BeginTime="0:0:0.25" Duration="0:0:0.4"/>
+            <DoubleAnimation Storyboard.TargetName="CaptionText"
+                             Storyboard.TargetProperty="Opacity"
+                             From="0" To="1" BeginTime="0:0:0.35" Duration="0:0:0.4"/>
+
+            <!-- ===== 外圈六边形：逐边顺时针生长（V0 顶点起笔） ===== -->
+            <DoubleAnimation Storyboard.TargetName="E0Scale" Storyboard.TargetProperty="ScaleX" From="0" To="1" BeginTime="0:0:0.55" Duration="0:0:0.14"/>
+            <DoubleAnimation Storyboard.TargetName="E0Scale" Storyboard.TargetProperty="ScaleY" From="0" To="1" BeginTime="0:0:0.55" Duration="0:0:0.14"/>
+            <DoubleAnimation Storyboard.TargetName="E1Scale" Storyboard.TargetProperty="ScaleY" From="0" To="1" BeginTime="0:0:0.67" Duration="0:0:0.14"/>
+            <DoubleAnimation Storyboard.TargetName="E2Scale" Storyboard.TargetProperty="ScaleX" From="0" To="1" BeginTime="0:0:0.79" Duration="0:0:0.14"/>
+            <DoubleAnimation Storyboard.TargetName="E2Scale" Storyboard.TargetProperty="ScaleY" From="0" To="1" BeginTime="0:0:0.79" Duration="0:0:0.14"/>
+            <DoubleAnimation Storyboard.TargetName="E3Scale" Storyboard.TargetProperty="ScaleX" From="0" To="1" BeginTime="0:0:0.91" Duration="0:0:0.14"/>
+            <DoubleAnimation Storyboard.TargetName="E3Scale" Storyboard.TargetProperty="ScaleY" From="0" To="1" BeginTime="0:0:0.91" Duration="0:0:0.14"/>
+            <DoubleAnimation Storyboard.TargetName="E4Scale" Storyboard.TargetProperty="ScaleY" From="0" To="1" BeginTime="0:0:1.03" Duration="0:0:0.14"/>
+            <DoubleAnimation Storyboard.TargetName="E5Scale" Storyboard.TargetProperty="ScaleX" From="0" To="1" BeginTime="0:0:1.15" Duration="0:0:0.14"/>
+            <DoubleAnimation Storyboard.TargetName="E5Scale" Storyboard.TargetProperty="ScaleY" From="0" To="1" BeginTime="0:0:1.15" Duration="0:0:0.14"/>
+
+            <!-- ===== 内部三根短双键线：顺时针浮现（平行右上边 → 下边 → 左边） ===== -->
+            <DoubleAnimation Storyboard.TargetName="B0Scale" Storyboard.TargetProperty="ScaleX" From="0" To="1" BeginTime="0:0:1.40" Duration="0:0:0.14"/>
+            <DoubleAnimation Storyboard.TargetName="B0Scale" Storyboard.TargetProperty="ScaleY" From="0" To="1" BeginTime="0:0:1.40" Duration="0:0:0.14"/>
+            <DoubleAnimation Storyboard.TargetName="B1Scale" Storyboard.TargetProperty="ScaleX" From="0" To="1" BeginTime="0:0:1.54" Duration="0:0:0.14"/>
+            <DoubleAnimation Storyboard.TargetName="B1Scale" Storyboard.TargetProperty="ScaleY" From="0" To="1" BeginTime="0:0:1.54" Duration="0:0:0.14"/>
+            <DoubleAnimation Storyboard.TargetName="B2Scale" Storyboard.TargetProperty="ScaleY" From="0" To="1" BeginTime="0:0:1.68" Duration="0:0:0.14"/>
+        </Storyboard>
+    </UserControl.Resources>
+
+    <Grid x:Name="RootGrid"
+          Background="{ThemeResource ApplicationPageBackgroundThemeBrush}">
+        <StackPanel HorizontalAlignment="Center"
+                    VerticalAlignment="Center"
+                    Spacing="20">
+            <!-- SplashScreen.png 居中展示（320 → 256，缩至 80%，给苯环留出展示空间） -->
+            <Border x:Name="LogoBorder"
+                    Width="256"
+                    Height="256"
+                    CornerRadius="24"
+                    Background="#FFFFFF"
+                    BorderBrush="#1A17A2B8"
+                    BorderThickness="1"
+                    HorizontalAlignment="Center">
+                <Border.RenderTransform>
+                    <ScaleTransform x:Name="LogoScale" ScaleX="0.86" ScaleY="0.86"/>
+                </Border.RenderTransform>
+                <Image x:Name="LogoImage"
+                       Source="Assets\SplashScreen.png"
+                       Stretch="Uniform"
+                       Margin="12"/>
+            </Border>
+
+            <TextBlock x:Name="TitleText"
+                       Text="AI-Tool-Box"
+                       Style="{StaticResource TitleLargeTextBlockStyle}"
+                       Opacity="0"
+                       HorizontalAlignment="Center"/>
+            <TextBlock x:Name="CaptionText"
+                       Text="H+Studio"
+                       Style="{StaticResource CaptionTextBlockStyle}"
+                       Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                       Opacity="0"
+                       HorizontalAlignment="Center"/>
+
+            <!-- 键线式苯环绘制动画（200x200 画布，Viewbox 缩放至 88px） -->
+            <Viewbox Width="88" Height="88" HorizontalAlignment="Center">
+                <Canvas Width="200" Height="200">
+                    <!-- ===== 外圈六边形（顶点 V0 上 → V1 右上 → V2 右下 → V3 下 → V4 左下 → V5 左上，顺时针） ===== -->
+                    <!-- E0: V0(100,12) → V1(176.21,56)，从起点向右下生长 -->
+                    <Line x:Name="E0" Canvas.Left="100" Canvas.Top="12" Width="76.21" Height="44"
+                          X1="0" Y1="0" X2="76.21" Y2="44"
+                          Stroke="{StaticResource RingColor}" StrokeThickness="6"
+                          StrokeStartLineCap="Round" StrokeEndLineCap="Round">
+                        <Line.RenderTransform>
+                            <ScaleTransform x:Name="E0Scale" ScaleX="0" ScaleY="0" CenterX="0" CenterY="0"/>
+                        </Line.RenderTransform>
+                    </Line>
+                    <!-- E1: V1(176.21,56) → V2(176.21,144)，向下生长 -->
+                    <Line x:Name="E1" Canvas.Left="173.21" Canvas.Top="56" Width="6" Height="88"
+                          X1="3" Y1="0" X2="3" Y2="88"
+                          Stroke="{StaticResource RingColor}" StrokeThickness="6"
+                          StrokeStartLineCap="Round" StrokeEndLineCap="Round">
+                        <Line.RenderTransform>
+                            <ScaleTransform x:Name="E1Scale" ScaleX="1" ScaleY="0" CenterX="3" CenterY="0"/>
+                        </Line.RenderTransform>
+                    </Line>
+                    <!-- E2: V2(176.21,144) → V3(100,188)，从起点向左下生长 -->
+                    <Line x:Name="E2" Canvas.Left="100" Canvas.Top="144" Width="76.21" Height="44"
+                          X1="76.21" Y1="0" X2="0" Y2="44"
+                          Stroke="{StaticResource RingColor}" StrokeThickness="6"
+                          StrokeStartLineCap="Round" StrokeEndLineCap="Round">
+                        <Line.RenderTransform>
+                            <ScaleTransform x:Name="E2Scale" ScaleX="0" ScaleY="0" CenterX="76.21" CenterY="0"/>
+                        </Line.RenderTransform>
+                    </Line>
+                    <!-- E3: V3(100,188) → V4(23.79,144)，从起点向左上生长 -->
+                    <Line x:Name="E3" Canvas.Left="23.79" Canvas.Top="144" Width="76.21" Height="44"
+                          X1="76.21" Y1="44" X2="0" Y2="0"
+                          Stroke="{StaticResource RingColor}" StrokeThickness="6"
+                          StrokeStartLineCap="Round" StrokeEndLineCap="Round">
+                        <Line.RenderTransform>
+                            <ScaleTransform x:Name="E3Scale" ScaleX="0" ScaleY="0" CenterX="76.21" CenterY="44"/>
+                        </Line.RenderTransform>
+                    </Line>
+                    <!-- E4: V4(23.79,144) → V5(23.79,56)，向上生长 -->
+                    <Line x:Name="E4" Canvas.Left="20.79" Canvas.Top="56" Width="6" Height="88"
+                          X1="3" Y1="88" X2="3" Y2="0"
+                          Stroke="{StaticResource RingColor}" StrokeThickness="6"
+                          StrokeStartLineCap="Round" StrokeEndLineCap="Round">
+                        <Line.RenderTransform>
+                            <ScaleTransform x:Name="E4Scale" ScaleX="1" ScaleY="0" CenterX="3" CenterY="88"/>
+                        </Line.RenderTransform>
+                    </Line>
+                    <!-- E5: V5(23.79,56) → V0(100,12)，从起点向右上生长（合拢） -->
+                    <Line x:Name="E5" Canvas.Left="23.79" Canvas.Top="12" Width="76.21" Height="44"
+                          X1="0" Y1="44" X2="76.21" Y2="0"
+                          Stroke="{StaticResource RingColor}" StrokeThickness="6"
+                          StrokeStartLineCap="Round" StrokeEndLineCap="Round">
+                        <Line.RenderTransform>
+                            <ScaleTransform x:Name="E5Scale" ScaleX="0" ScaleY="0" CenterX="0" CenterY="44"/>
+                        </Line.RenderTransform>
+                    </Line>
+
+                    <!-- ===== 内部三根短双键线（键线式苯环，平行于 E0/E2/E4，向心内缩 0.68、两端缩 15%，顺时针） ===== -->
+                    <!-- B0: 平行 E0（右上边），(107.77,44.65) → (144.05,65.59) -->
+                    <Line x:Name="B0" Canvas.Left="107.77" Canvas.Top="44.65" Width="36.28" Height="20.94"
+                          X1="0" Y1="0" X2="36.28" Y2="20.94"
+                          Stroke="{StaticResource RingColor}" StrokeThickness="5"
+                          StrokeStartLineCap="Round" StrokeEndLineCap="Round">
+                        <Line.RenderTransform>
+                            <ScaleTransform x:Name="B0Scale" ScaleX="0" ScaleY="0" CenterX="0" CenterY="0"/>
+                        </Line.RenderTransform>
+                    </Line>
+                    <!-- B1: 平行 E2（下边），(144.05,134.41) → (107.77,155.35) -->
+                    <Line x:Name="B1" Canvas.Left="107.77" Canvas.Top="134.41" Width="36.28" Height="20.94"
+                          X1="36.28" Y1="0" X2="0" Y2="20.94"
+                          Stroke="{StaticResource RingColor}" StrokeThickness="5"
+                          StrokeStartLineCap="Round" StrokeEndLineCap="Round">
+                        <Line.RenderTransform>
+                            <ScaleTransform x:Name="B1Scale" ScaleX="0" ScaleY="0" CenterX="36.28" CenterY="0"/>
+                        </Line.RenderTransform>
+                    </Line>
+                    <!-- B2: 平行 E4（左边），(48.18,120.94) → (48.18,79.06)，向上生长 -->
+                    <Line x:Name="B2" Canvas.Left="45.68" Canvas.Top="79.06" Width="5" Height="41.88"
+                          X1="2.5" Y1="41.88" X2="2.5" Y2="0"
+                          Stroke="{StaticResource RingColor}" StrokeThickness="5"
+                          StrokeStartLineCap="Round" StrokeEndLineCap="Round">
+                        <Line.RenderTransform>
+                            <ScaleTransform x:Name="B2Scale" ScaleX="1" ScaleY="0" CenterX="2.5" CenterY="41.88"/>
+                        </Line.RenderTransform>
+                    </Line>
+                </Canvas>
+            </Viewbox>
+        </StackPanel>
+    </Grid>
+</UserControl>

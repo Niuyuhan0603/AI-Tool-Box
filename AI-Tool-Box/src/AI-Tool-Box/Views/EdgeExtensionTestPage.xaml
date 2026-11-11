@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Page
+    x:Class="AI_Tool_Box.Views.EdgeExtensionTestPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <!-- 内测人员专用：带浏览器扩展的 WebView2 测试浏览器。
+         独立环境 + 独立用户数据目录（AreBrowserExtensionsEnabled=true，与 WebShell 共享环境隔离）。 -->
+    <Grid Background="{ThemeResource ApplicationPageBackgroundThemeBrush}" RowSpacing="6">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+
+        <!-- 标题 + 扩展加载状态 -->
+        <StackPanel Grid.Row="0" Spacing="2" Margin="20,14,20,0">
+            <StackPanel Orientation="Horizontal" Spacing="10">
+                <FontIcon Glyph="&#xE774;" FontSize="18" Foreground="#00E5FF"/>
+                <TextBlock Text="Edge扩展引入测试" Style="{StaticResource SubtitleTextBlockStyle}"/>
+            </StackPanel>
+            <TextBlock x:Name="ExtStatusText" TextWrapping="Wrap" FontSize="12"
+                       Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                       Text="正在初始化带扩展的 WebView2 浏览器…"/>
+        </StackPanel>
+
+        <!-- 地址栏 -->
+        <Grid Grid.Row="1" ColumnSpacing="6" Margin="20,0,20,0">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+            <TextBox x:Name="UrlBox" Grid.Column="0" PlaceholderText="输入网址，例如 https://www.bing.com"
+                     KeyDown="OnUrlKeyDown"/>
+            <Button Grid.Column="1" Content="前往" Style="{StaticResource AccentButtonStyle}" Click="OnGoClick"/>
+            <Button Grid.Column="2" Content="刷新" Click="OnRefreshClick"/>
+            <Button Grid.Column="3" Content="重载扩展" Click="OnReloadExtensionsClick"/>
+        </Grid>
+
+        <!-- 网页渲染区 -->
+        <Border x:Name="WebHost" Grid.Row="2" Margin="20,0,20,12"/>
+    </Grid>
+</Page>

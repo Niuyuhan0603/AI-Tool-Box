@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PDF 工具</title>
+<!--
+  PDF 工具隐藏页（pdf-lib + pdf.js，本地 lib\ 加载，完全离线；由宿主以隐藏 WebView2 承载，全部自行实现）
+  ============ 宿主 ↔ JS 消息协议（window.chrome.webview）============
+  JS → 宿主（postMessage）：
+    { type: "ready" }                                页面与 PDF 库就绪（可接收指令）
+    { type: "pdf-lib-load-error" }                   本地库加载失败
+    { type: "progress", done: number, total: number }进度（先发 done=0/total 总数，再逐项推进）
+    { type: "done", name: string, dataBase64: string }单项结果（可多次，dataBase64 为文件字节）
+    { type: "error", message: string }               错误上报
+  宿主 → JS（PostWebMessageAsJson）：
+    { cmd: "img2pdf", files: [{ name, dataBase64 }] }            多张 JPEG/PNG 按数组顺序合成一个 PDF
+    { cmd: "merge",   files: [{ name, dataBase64 }] }            多个 PDF 按数组顺序合并
+    { cmd: "pdf2png", file: { name, dataBase64 }, scale: 2 }     PDF 逐页渲染导出 PNG（每页一条 done）
+    { cmd: "pdf2text", file: { name, dataBase64 } }              PDF 逐页提取文字（每页一条 done，name 为 "text-page-N.txt"）
+    { cmd: "cropPage", file: { name, dataBase64 }, page: 1, box: [x1,y1,x2,y2] }  抽取单页并可设置 CropBox（PDF 坐标点，左下原点；box 可省略=整页）
+    说明：宿主可携带 id 字段，JS 会在 done/error/progress 中原样回传，便于并发请求配对。
+-->
+<script src="lib/pdf-lib.min.js"></script>
+<script src="lib/pdf.min.js"></script>
+<style>
+  html, body { margin: 0; padding: 0; background: transparent; color: #888; font-family: "Segoe UI", sans-serif; }
+  #hint { padding: 8px; font-size: 12px; opacity: .6; }
+</style>
+</head>
+<body>
+<div id="hint">PDF 工具后台页（供宿主程序调用，请勿关闭）。</div>
+<script>
+(function () {
+  "use strict";
+  var currentId = null;
+  var post = function (msg) { if (currentId !== null && msg && typeof msg === "object") msg.id = currentId; window.chrome.webview.postMessage(msg); };
+  var libOk = !!(window.PDFLib && window.pdfjsLib);
+
+  if (window.pdfjsLib && window.pdfjsLib.GlobalWorkerOptions) {
+    window.pdfjsLib.GlobalWorkerOptions.workerSrc = "lib/pdf.worker.min.js";
+  }
+
+  // 就绪 / 加载失败上报（延迟一拍，让脚本加载失败先暴露）
+  window.addEventListener("load", function () {
+    setTimeout(function () {
+      libOk = !!(window.PDFLib && window.pdfjsLib);
+      if (libOk) post({ type: "ready" });
+      else post({ type: "pdf-lib-load-error" });
+    }, 60);
+  });
+
+  // ===== base64 工具 =====
+  function b64ToBytes(b64) {
+    var bin = atob(b64);
+    var bytes = new Uint8Array(bin.length);
+    for (var i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+    return bytes;
+  }
+  function bytesToB64(bytes) {
+    var CHUNK = 0x8000, parts = [];
+    for (var i = 0; i < bytes.length; i += CHUNK) {
+      parts.push(String.fromCharCode.apply(null, bytes.subarray(i, Math.min(i + CHUNK, bytes.length))));
+    }
+    return btoa(parts.join(""));
+  }
+  function stamp() {
+    var d = new Date(), p = function (n) { return (n < 10 ? "0" : "") + n; };
+    return "" + d.getFullYear() + p(d.getMonth() + 1) + p(d.getDate()) + "-" + p(d.getHours()) + p(d.getMinutes()) + p(d.getSeconds());
+  }
+  function stemOf(name) {
+    var n = String(name || "file").replace(/[\\/:*?"<>|]/g, "_");
+    var dot = n.lastIndexOf(".");
+    return dot > 0 ? n.substring(0, dot) : n;
+  }
+  function sniffImage(bytes) {
+    if (bytes.length >= 4 && bytes[0] === 0x89 && bytes[1] === 0x50 && bytes[2] === 0x4E && bytes[3] === 0x47) return "png";
+    if (bytes.length >= 3 && bytes[0] === 0xFF && bytes[1] === 0xD8 && bytes[2] === 0xFF) return "jpg";
+    return null;
+  }
+
+  // ===== 功能 a：图片 → PDF（按数组顺序合成） =====
+  async function img2pdf(msg) {
+    if (!msg.files || !msg.files.length) throw new Error("未提供图片文件。");
+    var out = await PDFLib.PDFDocument.create();
+    post({ type: "progress", done: 0, total: 1 });
+    for (var i = 0; i < msg.files.length; i++) {
+      var f = msg.files[i];
+      var bytes = b64ToBytes(f.dataBase64);
+      var kind = sniffImage(bytes);
+      var img;
+      if (kind === "png") img = await out.embedPng(bytes);
+      else if (kind === "jpg") img = await out.embedJpg(bytes);
+      else {
+        var lower = String(f.name || "").toLowerCase();
+        if (lower.endsWith(".png")) img = await out.embedPng(bytes);
+        else img = await out.embedJpg(bytes);
+      }
+      var page = out.addPage([img.width, img.height]);
+      page.drawImage(img, { x: 0, y: 0, width: img.width, height: img.height });
+    }
+    var data = await out.save();
+    post({ type: "done", name: "images-" + stamp() + ".pdf", dataBase64: bytesToB64(data) });
+  }
+
+  // ===== 功能 b：PDF 合并（按数组顺序） =====
+  async function merge(msg) {
+    if (!msg.files || !msg.files.length) throw new Error("未提供 PDF 文件。");
+    var out = await PDFLib.PDFDocument.create();
+    for (var i = 0; i < msg.files.length; i++) {
+      var src = await PDFLib.PDFDocument.load(b64ToBytes(msg.files[i].dataBase64), { ignoreEncryption: true });
+      var pages = await out.copyPages(src, src.getPageIndices());
+      for (var p = 0; p < pages.length; p++) out.addPage(pages[p]);
+      post({ type: "progress", done: i + 1, total: msg.files.length });
+    }
+    var data = await out.save();
+    post({ type: "done", name: "merged-" + stamp() + ".pdf", dataBase64: bytesToB64(data) });
+  }
+
+  // ===== 功能 c：PDF → PNG（逐页渲染导出） =====
+  async function pdf2png(msg) {
+    if (!msg.file) throw new Error("未提供 PDF 文件。");
+    var scale = Number(msg.scale) > 0 ? Number(msg.scale) : 2;
+    var doc = await window.pdfjsLib.getDocument({ data: b64ToBytes(msg.file.dataBase64) }).promise;
+    var stem = stemOf(msg.file.name);
+    post({ type: "progress", done: 0, total: doc.numPages });
+    for (var p = 1; p <= doc.numPages; p++) {
+      var page = await doc.getPage(p);
+      var viewport = page.getViewport({ scale: scale });
+      var canvas = document.createElement("canvas");
+      canvas.width = Math.max(1, Math.ceil(viewport.width));
+      canvas.height = Math.max(1, Math.ceil(viewport.height));
+      var ctx = canvas.getContext("2d");
+      ctx.fillStyle = "#ffffff";
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      await page.render({ canvasContext: ctx, viewport: viewport }).promise;
+      var url = canvas.toDataURL("image/png");
+      post({ type: "done", name: stem + "-page-" + p + ".png", dataBase64: url.substring(url.indexOf(",") + 1) });
+      post({ type: "progress", done: p, total: doc.numPages });
+      canvas.width = 0; canvas.height = 0; // 释放显存
+    }
+    await doc.destroy();
+  }
+
+  // ===== 功能 d：PDF 批注 + 裁剪导出（查看器页调用，pdf-lib 写入） =====
+  async function exportAnnotated(msg) {
+    if (!msg.file) throw new Error("未提供 PDF 文件。");
+    var doc = await PDFLib.PDFDocument.load(b64ToBytes(msg.file.dataBase64), { ignoreEncryption: true });
+    // 内嵌标准字体（PDFDocument 没有 getFont，必须用 embedFont）。
+    var stdFont = await doc.embedFont(PDFLib.StandardFonts.Helvetica);
+    var red = PDFLib.rgb(0.9, 0.12, 0.12);
+
+    // 裁剪（仅当前页）：crop = { page: n, box: [x1,y1,x2,y2] }（PDF 坐标，左下原点）
+    if (msg.crop && msg.crop.box && msg.crop.box.length === 4) {
+      var cp = doc.getPage(Math.max(0, Number(msg.crop.page) - 1));
+      // pdf-lib 的 setCropBox 接收 (x, y, width, height)，此处由 [x1,y1,x2,y2] 换算。
+      var cx1 = Number(msg.crop.box[0]), cy1 = Number(msg.crop.box[1]);
+      var cx2 = Number(msg.crop.box[2]), cy2 = Number(msg.crop.box[3]);
+      cp.setCropBox(cx1, cy1, cx2 - cx1, cy2 - cy1);
+    }
+
+    // 批注：annots = [{ page, kind:"text"|"pen", x, y, text?, points? }]
+    var list = msg.annots || [];
+    for (var i = 0; i < list.length; i++) {
+      var a = list[i];
+      var pg = doc.getPage(Math.max(0, Number(a.page) - 1));
+      if (a.kind === "text") {
+        pg.drawText(String(a.text || ""), { x: Number(a.x), y: Number(a.y), size: 12, color: red, font: stdFont });
+      } else if (a.kind === "pen" && a.points && a.points.length > 1) {
+        for (var k = 0; k < a.points.length - 1; k++) {
+          pg.drawLine({
+            start: { x: Number(a.points[k].x), y: Number(a.points[k].y) },
+            end: { x: Number(a.points[k + 1].x), y: Number(a.points[k + 1].y) },
+            thickness: 1.4, color: red
+          });
+        }
+      }
+    }
+    var data = await doc.save();
+    post({ type: "done", name: "annotated-" + stamp() + ".pdf", dataBase64: bytesToB64(data) });
+  }
+
+  // ===== 功能 e：单页裁剪（错题本调用）：抽取指定页，可选设置 CropBox，输出新 PDF =====
+  async function cropPage(msg) {
+    if (!msg.file) throw new Error("未提供 PDF 文件。");
+    var src = await PDFLib.PDFDocument.load(b64ToBytes(msg.file.dataBase64), { ignoreEncryption: true });
+    var total = src.getPageCount();
+    var idx = Math.max(0, Math.min(total - 1, Number(msg.page || 1) - 1));
+    var out = await PDFLib.PDFDocument.create();
+    var copied = await out.copyPages(src, [idx]);
+    var pg = out.addPage(copied[0]);
+    if (msg.box && msg.box.length === 4) {
+      // 传入 [x1,y1,x2,y2]（PDF 坐标点，左下原点）；pdf-lib 的 setCropBox 接收 (x, y, width, height)。
+      var bx1 = Number(msg.box[0]), by1 = Number(msg.box[1]);
+      var bx2 = Number(msg.box[2]), by2 = Number(msg.box[3]);
+      pg.setCropBox(bx1, by1, bx2 - bx1, by2 - by1);
+    }
+    var data = await out.save();
+    post({ type: "done", name: "crop-" + stamp() + ".pdf", dataBase64: bytesToB64(data) });
+  }
+
+  // ===== 功能 f：PDF → 文字（逐页提取，每页一条 done；name 含页码，dataBase64 为该页 UTF-8 文本） =====
+  async function pdf2text(msg) {
+    if (!msg.file) throw new Error("未提供 PDF 文件。");
+    var doc = await window.pdfjsLib.getDocument({ data: b64ToBytes(msg.file.dataBase64) }).promise;
+    var stem = stemOf(msg.file.name);
+    post({ type: "progress", done: 0, total: doc.numPages });
+    for (var p = 1; p <= doc.numPages; p++) {
+      var page = await doc.getPage(p);
+      var tc = await page.getTextContent();
+      var lines = [], lastY = null;
+      for (var i = 0; i < tc.items.length; i++) {
+        var it = tc.items[i];
+        if (typeof it.str !== "string") continue;
+        var y = it.transform ? it.transform[5] : 0;
+        // 同一行的文字片段按 y 坐标合并，换行时另起一行
+        if (lastY === null || Math.abs(y - lastY) > 2) { lines.push(it.str); lastY = y; }
+        else { lines[lines.length - 1] += it.str; }
+      }
+      var text = lines.join("\n");
+      var utf8 = new TextEncoder().encode(text);
+      post({ type: "done", name: stem + "-text-page-" + p + ".txt", dataBase64: bytesToB64(utf8) });
+      post({ type: "progress", done: p, total: doc.numPages });
+    }
+    await doc.destroy();
+  }
+
+  // ===== 指令分发 =====
+  async function handle(msg) {
+    currentId = (msg && msg.id !== undefined) ? msg.id : null;
+    if (!msg || typeof msg.cmd !== "string") return;
+    if (!libOk) throw new Error("PDF 库尚未加载成功，请检查网络后重试。");
+    switch (msg.cmd) {
+      case "img2pdf": return img2pdf(msg);
+      case "merge": return merge(msg);
+      case "pdf2png": return pdf2png(msg);
+      case "pdf2text": return pdf2text(msg);
+      case "exportAnnotated": return exportAnnotated(msg);
+      case "cropPage": return cropPage(msg);
+      default: throw new Error("未知指令：" + msg.cmd);
+    }
+  }
+
+  window.chrome.webview.addEventListener("message", function (e) {
+    handle(e.data).catch(function (err) {
+      post({ type: "error", message: String((err && err.message) || err) });
+    });
+  });
+})();
+</script>
+</body>
+</html>

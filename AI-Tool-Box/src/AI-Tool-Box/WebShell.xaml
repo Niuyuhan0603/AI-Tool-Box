@@ -1,0 +1,171 @@
+<?xml version="1.0" encoding="utf-8"?>
+<UserControl
+    x:Class="AI_Tool_Box.Controls.WebShell"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:controls="using:Microsoft.UI.Xaml.Controls"
+    xmlns:views="using:AI_Tool_Box.Views">
+
+    <!-- 列布局：主列（标签/地址栏/网页） + 右侧 AI 辅助侧栏（可收起）；
+         行布局：Tab 条 / 地址栏 / 网页渲染区（地址栏与网页互不重叠，网页渲染区固定在地址栏下方） -->
+    <Grid Background="{ThemeResource ApplicationPageBackgroundThemeBrush}">
+        <Grid.ColumnDefinitions>
+            <!-- Col 0: 主区域 -->
+            <ColumnDefinition Width="*"/>
+            <!-- Col 1: AI 辅助侧栏（默认收起） -->
+            <ColumnDefinition Width="Auto"/>
+        </Grid.ColumnDefinitions>
+        <Grid.RowDefinitions>
+            <!-- Row 0: TabStrip 标签头 -->
+            <RowDefinition Height="44"/>
+            <!-- Row 1: 地址栏 / 进度条 / 错误提示（独立占位行，不覆盖网页） -->
+            <RowDefinition Height="Auto"/>
+            <!-- Row 2: WebView2 网页渲染区（100% 剩余空间） -->
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+
+        <!-- ===== Row 0: Tab 标签条（仅 TabStrip 头，不使用 TabView 的 Content 机制） ===== -->
+        <!-- 拖拽：CanDragTabs 允许标签拖动；TabDroppedOutside 处理拖出（tear-out 到独立窗口）；
+             TabStripDragOver/TabStripDrop 处理从其他窗口拖回（自定义格式 aitb-tab-tearout）。 -->
+        <controls:TabView x:Name="TabView"
+                          Grid.Row="0" Grid.Column="0"
+                          TabCloseRequested="OnTabCloseRequested"
+                          AddTabButtonClick="OnAddTabClick"
+                          SelectionChanged="OnTabSelectionChanged"
+                          CanDragTabs="True"
+                          CanReorderTabs="False"
+                          TabDragStarting="OnTabDragStarting"
+                          TabDroppedOutside="OnTabDroppedOutside"
+                          TabStripDragOver="OnTabStripDragOver"
+                          TabStripDrop="OnTabStripDrop"
+                          Background="Transparent"
+                          HorizontalAlignment="Stretch"
+                          VerticalAlignment="Stretch"/>
+
+        <!-- ===== Row 1: 地址栏 / 进度条 / 错误提示（独立行） ===== -->
+        <StackPanel Grid.Row="1" Grid.Column="0" Spacing="2">
+            <!-- 地址栏（可由外部隐藏：迷你地址栏用于 AI/Sniffer 模式时隐藏整栏） -->
+            <Grid x:Name="AddressBar"
+                  ColumnSpacing="6"
+                  Padding="8,4,8,4"
+                  Background="{ThemeResource LayerFillColorDefaultBrush}">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+
+                <Button Grid.Column="0"
+                        Click="OnBackClick"
+                        ToolTipService.ToolTip="后退"
+                        Padding="8,4">
+                    <FontIcon Glyph="&#xE72B;" FontFamily="{StaticResource SymbolThemeFontFamily}"/>
+                </Button>
+                <Button Grid.Column="1"
+                        Click="OnForwardClick"
+                        ToolTipService.ToolTip="前进"
+                        Padding="8,4">
+                    <FontIcon Glyph="&#xE72A;" FontFamily="{StaticResource SymbolThemeFontFamily}"/>
+                </Button>
+                <TextBox x:Name="AddressBox"
+                         Grid.Column="2"
+                         PlaceholderText="输入网址，例如 https://www.baidu.com"
+                         KeyDown="OnAddressKeyDown"/>
+                <Button Grid.Column="3"
+                        Content="前往"
+                        Style="{StaticResource AccentButtonStyle}"
+                        Click="OnGoClick"/>
+                <ToggleButton x:Name="AiAssistToggle"
+                              Grid.Column="4"
+                              Content="AI 辅助"
+                              Checked="OnAiAssistToggleChanged"
+                              Unchecked="OnAiAssistToggleChanged"
+                              ToolTipService.ToolTip="打开/收起右侧 AI 辅助侧栏（可对当前网页提问）"/>
+                <Button Grid.Column="5"
+                        Click="OnAddBookmarkClick"
+                        ToolTipService.ToolTip="添加书签"
+                        Padding="8,4">
+                    <FontIcon Glyph="&#xE728;" FontFamily="{StaticResource SymbolThemeFontFamily}"/>
+                </Button>
+            </Grid>
+
+            <!-- 进度条 -->
+            <ProgressBar x:Name="LoadingBar"
+                         Visibility="Collapsed"
+                         IsIndeterminate="True"
+                         Height="2"
+                         Margin="8,0"/>
+
+            <!-- 错误提示 -->
+            <controls:InfoBar x:Name="ErrorBar"
+                              IsOpen="False"
+                              IsClosable="True"
+                              Severity="Error"
+                              Title="加载失败"
+                              Margin="12,4,12,0"/>
+        </StackPanel>
+
+        <!-- ===== Row 2: WebView2 内容容器 + 悬浮球 ===== -->
+        <Grid x:Name="WebViewHost"
+              Grid.Row="2"
+              Background="Transparent"/>
+
+        <!-- 悬浮球（右下角）：书签 / 历史 / 下载 -->
+        <Grid Grid.Row="2"
+              HorizontalAlignment="Right"
+              VerticalAlignment="Bottom"
+              Margin="0,0,16,16"
+              Background="Transparent">
+            <Button x:Name="HoverBall"
+                    PointerEntered="OnHoverBallEntered"
+                    PointerExited="OnHoverBallExited"
+                    Width="48" Height="48"
+                    CornerRadius="24"
+                    Background="{ThemeResource AccentFillColorDefaultBrush}"
+                    BorderThickness="0"
+                    ToolTipService.ToolTip="快捷菜单：书签 / 历史 / 下载"
+                    AutomationProperties.Name="快捷菜单">
+                <FontIcon Glyph="&#xE712;" FontFamily="{StaticResource SymbolThemeFontFamily}" Foreground="White"/>
+            </Button>
+
+            <Border x:Name="HoverMenu"
+                    HorizontalAlignment="Right"
+                    VerticalAlignment="Bottom"
+                    Margin="0,0,0,56"
+                    Background="{ThemeResource AcrylicBackgroundFillColorDefaultBrush}"
+                    BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                    BorderThickness="1"
+                    CornerRadius="8"
+                    Padding="4"
+                    Visibility="Collapsed"
+                    PointerEntered="OnHoverMenuEntered"
+                    PointerExited="OnHoverMenuExited">
+                <StackPanel Spacing="2" MinWidth="160">
+                    <Button Content="书签管理"
+                            Click="OnShowBookmarksClick"
+                            HorizontalAlignment="Stretch"
+                            HorizontalContentAlignment="Left"/>
+                    <Button Content="历史记录"
+                            Click="OnShowHistoryClick"
+                            HorizontalAlignment="Stretch"
+                            HorizontalContentAlignment="Left"/>
+                    <Button Content="下载记录"
+                            Click="OnShowDownloadsClick"
+                            HorizontalAlignment="Stretch"
+                            HorizontalContentAlignment="Left"/>
+                </StackPanel>
+            </Border>
+        </Grid>
+
+        <!-- ===== 右侧 AI 辅助侧栏（跨两行覆盖主列右侧，独立区域不与网页重叠） ===== -->
+        <Border x:Name="AiAssistSidebar"
+                Grid.Column="1" Grid.Row="0" Grid.RowSpan="3"
+                Width="400"
+                Visibility="Collapsed">
+            <views:AiAssistPanel x:Name="AiAssistPanelInst" CollapsedRequested="OnAiAssistPanelCollapse"/>
+        </Border>
+    </Grid>
+</UserControl>

@@ -1,0 +1,1766 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>分子结构</title>
+<style>
+  html, body { margin:0; padding:0; height:100%; background:#0A0F14; color:#DCEEF7;
+    font-family:"Segoe UI","Microsoft YaHei",system-ui,sans-serif; overflow:hidden; }
+  #tabs { height:38px; display:flex; align-items:center; gap:6px; padding:0 10px;
+    background:#0E1620; border-bottom:1px solid #1B2A36; }
+  #tabs button { background:transparent; color:#9FB6C6; border:1px solid #1B2A36; border-radius:6px;
+    padding:5px 12px; font-size:12px; cursor:pointer; }
+  #tabs button.active { color:#04121A; background:#00E5FF; border-color:#00E5FF; font-weight:600; }
+  .pane { position:absolute; left:0; right:0; bottom:0; top:38px; }
+  #drawPane #stage { position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
+    cursor:grab; touch-action:none; overflow:hidden; }
+  #drawPane #stage.grabbing { cursor:grabbing; }
+  #drawPane svg { max-width:96%; max-height:96%; }
+  #drawBar { position:absolute; top:8px; right:10px; display:flex; gap:6px; z-index:5; }
+  #drawBar button { background:#111C26; color:#CFE3EE; border:1px solid #1E3140; border-radius:5px;
+    padding:3px 9px; font-size:12px; cursor:pointer; }
+  #drawBar button:hover { border-color:#00E5FF; }
+  #tip { position:absolute; left:0; right:0; bottom:8px; text-align:center; font-size:12px; color:#5B7284; }
+  #err { color:#FF7B72; font-size:13px; max-width:80%; text-align:center; }
+
+  /* ===== 原子拼装 ===== */
+  #buildPane { display:flex; flex-direction:column; }
+  #toolbar { display:flex; flex-wrap:wrap; align-items:center; gap:4px; padding:6px 8px;
+    background:#0E1620; border-bottom:1px solid #1B2A36; }
+  #toolbar .lbl { font-size:11px; color:#7E96A6; margin:0 4px 0 6px; }
+  .chip { background:#111C26; color:#CFE3EE; border:1px solid #1E3140; border-radius:5px;
+    padding:3px 8px; font-size:12px; cursor:pointer; }
+  .chip.active { background:#00E5FF; color:#04121A; border-color:#00E5FF; font-weight:600; }
+  .chip.danger.active { background:#FF6B6B; border-color:#FF6B6B; color:#1A0505; }
+  #buildBody { flex:1; display:flex; min-height:0; }
+  #canvasWrap { flex:1; position:relative; min-width:260px; }
+  #molCanvas { display:block; width:100%; height:100%; cursor:crosshair; }
+  #hint { position:absolute; left:10px; bottom:8px; font-size:11px; color:#5B7284; pointer-events:none; }
+  #report { width:300px; border-left:1px solid #1B2A36; background:#0B131A; overflow-y:auto;
+    padding:10px 12px; font-size:12px; line-height:1.55; }
+  #report h3 { font-size:12px; color:#00E5FF; margin:10px 0 4px; font-weight:600; }
+  #report h3:first-child { margin-top:0; }
+  #report .kv { color:#B9D2E0; }
+  #report .muted { color:#7E96A6; }
+  #report .iso { border:1px solid #1B2A36; border-radius:6px; padding:5px 7px; margin-bottom:5px;
+    cursor:pointer; }
+  #report .iso:hover { border-color:#00E5FF; background:#0E1B24; }
+  #report .iso b { color:#8FE6FF; font-weight:600; }
+  #report .warn { color:#FFC46B; }
+  #report .err { color:#FF7B72; }
+  #report .tag { display:inline-block; background:#12222D; border-radius:4px; padding:0 5px;
+    margin:1px 3px 1px 0; font-size:11px; color:#9FE3F5; }
+  #report button.mini { background:#12222D; color:#9FE3F5; border:1px solid #1E3140; border-radius:4px;
+    font-size:11px; padding:2px 7px; cursor:pointer; margin-top:6px; }
+  #report .mono { font-family:Consolas,"Cascadia Mono",monospace; color:#9FE3F5; word-break:break-all; }
+  #report canvas.isoCanvas { background:#08111A; border:1px solid #16232E; border-radius:4px; }
+  #btnFinish { background:#00E5FF; color:#04121A; border-color:#00E5FF; font-weight:600; }
+
+  /* ===== 无机化学 / 配合物 ===== */
+  #inorgPane { display:flex; flex-direction:column; }
+  #inorgBar { display:flex; flex-wrap:wrap; align-items:center; gap:6px; padding:6px 8px;
+    background:#0E1620; border-bottom:1px solid #1B2A36; font-size:12px; }
+  #inorgBar .lbl { font-size:11px; color:#7E96A6; margin-left:4px; }
+  #inorgBar select, #inorgBar input[type=text] { background:#111C26; color:#CFE3EE;
+    border:1px solid #1E3140; border-radius:5px; padding:3px 6px; font-size:12px; }
+  #inorgBar input[type=text] { min-width:240px; flex:1; }
+  #inorgBody { flex:1; display:flex; min-height:0; }
+  #inorgCanvasWrap { flex:1; position:relative; min-width:260px; background:#0A0F14; }
+  #inorgCanvas { display:block; width:100%; height:100%; }
+  #inorgHint { position:absolute; left:10px; bottom:8px; font-size:11px; color:#5B7284; pointer-events:none; }
+  #inorgReport { width:340px; border-left:1px solid #1B2A36; background:#0B131A; overflow-y:auto;
+    padding:10px 12px; font-size:12px; line-height:1.55; }
+  #inorgReport h3 { font-size:12px; color:#00E5FF; margin:10px 0 4px; font-weight:600; }
+  #inorgReport h3:first-child { margin-top:0; }
+  #inorgReport .muted { color:#7E96A6; }
+  #inorgReport .kv { color:#B9D2E0; }
+  #inorgReport .cx { border:1px solid #1B2A36; border-radius:6px; padding:6px 8px; margin-bottom:6px; cursor:pointer; }
+  #inorgReport .cx:hover { border-color:#00E5FF; background:#0E1B24; }
+  #inorgReport .cx.sel { border-color:#00E5FF; background:#0E1B24; }
+  #inorgReport .tag { display:inline-block; background:#12222D; border-radius:4px; padding:0 5px;
+    margin:1px 3px 1px 0; font-size:11px; color:#9FE3F5; }
+  #inorgReport .chiral { background:#3A1F2A; color:#FFB3C7; }
+  #inorgReport canvas.cxCanvas { background:#08111A; border:1px solid #16232E; border-radius:4px;
+    display:block; margin-top:4px; }
+</style>
+</head>
+<body>
+<div id="tabs">
+  <button id="tabDraw" class="active" data-tab="draw">SMILES 结构绘制</button>
+  <button id="tabBuild" data-tab="build">原子拼装 / 异构体</button>
+  <button id="tabInorg" data-tab="inorg">无机化学 / 配合物</button>
+</div>
+
+<div id="drawPane" class="pane">
+  <div id="stage"></div>
+  <div id="drawBar">
+    <button id="btnZoomIn" title="放大">＋</button>
+    <button id="btnZoomOut" title="缩小">－</button>
+    <button id="btnZoomReset" title="恢复初始缩放与位置">重置视图</button>
+  </div>
+  <div id="tip">拖动可平移结构 · 滚轮缩放 · 支持 SMILES（如 CC(=O)OC1=CC=CC=C1C(=O)O） · 导出 SVG/PNG 用左侧按钮</div>
+</div>
+
+<div id="buildPane" class="pane" style="display:none">
+  <div id="toolbar">
+    <span class="lbl">元素</span>
+    <span id="elChips"></span>
+    <span class="lbl">键级</span>
+    <span id="orderChips"></span>
+    <span class="lbl">工具</span>
+    <button class="chip active" data-mode="atom">加原子</button>
+    <button class="chip" data-mode="bond">连键</button>
+    <button class="chip" data-mode="erase">擦除</button>
+    <button class="chip" id="btnOptimize">松弛/稳定构型</button>
+    <button class="chip" id="btnEnumerate">枚举同分异构体</button>
+    <button class="chip" id="btnFinish">完成：结构图 + 参数 + 异构体</button>
+    <button class="chip danger" id="btnClear">清空</button>
+  </div>
+  <div id="buildBody">
+    <div id="canvasWrap">
+      <canvas id="molCanvas"></canvas>
+      <div id="hint">鼠标：空白处点击加原子 · 拖动原子移动 · 连键先点 A 再点 B · 点中键可改键级 · 右键删除<br/>
+        键盘：A/B/E 切工具 · ←↑↓→ 移动原子 · 1/2/3 键级 · Delete 断键/删原子 · Enter 完成</div>
+    </div>
+    <div id="report"><div class="muted">在左侧画布拼装原子后，这里会实时给出分子式、分子量、不饱和度、官能团、异构体与稳定构型能量。</div></div>
+  </div>
+</div>
+
+<div id="inorgPane" class="pane" style="display:none">
+  <div id="inorgBar">
+    <span class="lbl">中心金属</span>
+    <select id="metalSel"></select>
+    <span class="lbl">几何构型</span>
+    <select id="geomSel"></select>
+    <span class="lbl">配体（逗号分隔，个数＝配位数）</span>
+    <input id="ligandInput" type="text" value="NH3, NH3, NH3, NH3, Cl, Cl"/>
+    <button class="chip" id="btnBuildComplex">生成配合物与异构体</button>
+    <button class="chip" id="btnPresetOct">示例 [Co(NH3)4Cl2]</button>
+    <button class="chip" id="btnPresetSqp">示例 [Pt(NH3)2Cl2]</button>
+  </div>
+  <div id="inorgBody">
+    <div id="inorgCanvasWrap">
+      <canvas id="inorgCanvas"></canvas>
+      <div id="inorgHint">左侧为当前选中的配合物构型（3D 投影）。右侧列出全部几何异构体，并标注是否有旋光异构（手性）。</div>
+    </div>
+    <div id="inorgReport"><div class="muted">选择中心金属与几何构型、填写配体后点「生成配合物与异构体」。程序会用构型的对称群去重，枚举几何异构体，并用稳定子中是否存在镜面/反演操作判定旋光异构。</div></div>
+  </div>
+</div>
+
+<script src="smiles-drawer.min.js"></script>
+<script>
+/* ==================== 通用 ==================== */
+function bridge(payload) {
+  if (window.chrome && window.chrome.webview) window.chrome.webview.postMessage(payload);
+}
+
+const ATOMIC_WEIGHT = { H:1.008, C:12.011, N:14.007, O:15.999, S:32.06, P:30.974, F:18.998,
+  Cl:35.45, Br:79.904, I:126.904, B:10.81, Si:28.085, Na:22.99, K:39.098, Mg:24.305, Ca:40.078 };
+
+/* 常见价态（用于隐式补氢） */
+const VALENCE = { H:1, C:4, N:3, O:2, F:1, Cl:1, Br:1, I:1, S:2, P:3, B:3, Si:4 };
+
+const ELEMENT_COLOR = {
+  C:'#4C566A', H:'#E6EDF3', O:'#FF6B6B', N:'#6FA8FF', S:'#FFD166', P:'#FF9F45',
+  F:'#69DB7C', Cl:'#63E6BE', Br:'#E599F7', I:'#B197FC', B:'#FFA8A8', Si:'#A9BCC9'
+};
+
+/* ==================== 页签切换 ==================== */
+const drawPane = document.getElementById('drawPane');
+const buildPane = document.getElementById('buildPane');
+const tabDraw = document.getElementById('tabDraw');
+const tabBuild = document.getElementById('tabBuild');
+const inorgPane = document.getElementById('inorgPane');
+const tabInorg = document.getElementById('tabInorg');
+let lastComplex = null;
+
+function switchTab(name) {
+  const draw = name === 'draw';
+  const build = name === 'build';
+  const inorg = name === 'inorg';
+  drawPane.style.display = draw ? '' : 'none';
+  buildPane.style.display = build ? 'flex' : 'none';
+  inorgPane.style.display = inorg ? 'flex' : 'none';
+  tabDraw.classList.toggle('active', draw);
+  tabBuild.classList.toggle('active', build);
+  tabInorg.classList.toggle('active', inorg);
+  if (build) { resizeCanvas(); drawBuilder(); }
+  else if (inorg) { resizeInorgCanvas(); if (lastComplex) drawComplexView(); }
+  else render(lastSmiles);
+}
+tabDraw.addEventListener('click', () => switchTab('draw'));
+tabBuild.addEventListener('click', () => switchTab('build'));
+tabInorg.addEventListener('click', () => switchTab('inorg'));
+
+/* ==================== SMILES 绘制（SmilesDrawer 2.4.1：SVG 必须用 SvgDrawer） ==================== */
+const stage = document.getElementById('stage');
+let lastSmiles = '';
+let drawer = null;
+
+function parseFormula(formula) {
+  const counts = {};
+  const re = /([A-Z][a-z]?)(\d*)/g;
+  let m;
+  while ((m = re.exec(formula || '')) !== null) {
+    if (!m[1]) continue;
+    counts[m[1]] = (counts[m[1]] || 0) + (m[2] ? parseInt(m[2], 10) : 1);
+  }
+  return counts;
+}
+
+function computeMeta(formula) {
+  const counts = parseFormula(formula || '');
+  let mw = 0, atoms = 0;
+  for (const [el, n] of Object.entries(counts)) {
+    mw += (ATOMIC_WEIGHT[el] || 0) * n;
+    atoms += n;
+  }
+  return { formula, mw, atoms, counts };
+}
+
+function render(smiles) {
+  lastSmiles = (smiles || '').trim();
+  stage.innerHTML = '';
+  view = { x: 0, y: 0, scale: 1 };
+  if (!lastSmiles) {
+    stage.innerHTML = '<div id="err">请输入 SMILES，例如：CC(=O)OC1=CC=CC=C1C(=O)O（阿司匹林）</div>';
+    return;
+  }
+  try {
+    SmilesDrawer.parse(lastSmiles, tree => {
+      const w = Math.max(320, Math.min(stage.clientWidth || 640, 900));
+      const h = Math.max(240, Math.min(stage.clientHeight || 480, 640));
+      const canvas = document.createElement('canvas');
+      canvas.width = Math.round(w * 2);
+      canvas.height = Math.round(h * 2);
+      canvas.style.width = w + 'px';
+      canvas.style.height = h + 'px';
+      canvas.style.background = '#0A0F14';
+      stage.appendChild(canvas);
+      applyView();
+      // 注意：SmilesDrawer 2.4.1 只有 Drawer 支持以 canvas 为目标；SvgDrawer 需要 graph 对象，不能直接传配置。
+      drawer = new SmilesDrawer.Drawer({
+        width: canvas.width, height: canvas.height,
+        bondThickness: 2, bondLength: 34, padding: 24,
+        terminalCarbons: false, compactDrawing: false
+      });
+      drawer.draw(tree, canvas, 'dark', false);
+      const info = analyzeSmiles(lastSmiles);
+      bridge({ type: 'meta', smiles: lastSmiles, formula: info.text, info });
+    }, err => {
+      stage.innerHTML = '<div id="err">SMILES 解析失败：' + (err && err.message ? err.message : String(err)) + '</div>';
+      bridge({ type: 'error', message: String(err) });
+    });
+  } catch (e) {
+    stage.innerHTML = '<div id="err">渲染失败：' + e.message + '</div>';
+    bridge({ type: 'error', message: e.message });
+  }
+}
+
+/* ==================== 结构视图：平移 / 缩放 ====================
+   拖动画布平移结构；滚轮 / 右上角按钮缩放；「重置视图」回到初始状态。 */
+let view = { x: 0, y: 0, scale: 1 };
+const MIN_VIEW_SCALE = 0.2, MAX_VIEW_SCALE = 8;
+
+function applyView() {
+  const cv = stage.querySelector('canvas');
+  if (!cv) return;
+  cv.style.transformOrigin = 'center center';
+  cv.style.transform = `translate(${view.x}px, ${view.y}px) scale(${view.scale})`;
+}
+
+function resetView() { view = { x: 0, y: 0, scale: 1 }; applyView(); }
+
+function zoomBy(factor) {
+  view.scale = Math.max(MIN_VIEW_SCALE, Math.min(MAX_VIEW_SCALE, view.scale * factor));
+  applyView();
+}
+
+let viewDrag = null;
+stage.addEventListener('pointerdown', ev => {
+  if (ev.button !== 0 && ev.button !== 2) return;
+  if (!stage.querySelector('canvas')) return;
+  viewDrag = { x: ev.clientX - view.x, y: ev.clientY - view.y };
+  stage.classList.add('grabbing');
+  try { stage.setPointerCapture(ev.pointerId); } catch (_) {}
+});
+stage.addEventListener('pointermove', ev => {
+  if (!viewDrag) return;
+  view.x = ev.clientX - viewDrag.x;
+  view.y = ev.clientY - viewDrag.y;
+  applyView();
+});
+function endViewDrag() { viewDrag = null; stage.classList.remove('grabbing'); }
+stage.addEventListener('pointerup', endViewDrag);
+stage.addEventListener('pointercancel', endViewDrag);
+stage.addEventListener('wheel', ev => {
+  if (!stage.querySelector('canvas')) return;
+  ev.preventDefault();
+  zoomBy(ev.deltaY < 0 ? 1.12 : 1 / 1.12);
+}, { passive: false });
+stage.addEventListener('contextmenu', ev => ev.preventDefault());
+
+document.getElementById('btnZoomIn').onclick = () => zoomBy(1.2);
+document.getElementById('btnZoomOut').onclick = () => zoomBy(1 / 1.2);
+document.getElementById('btnZoomReset').onclick = resetView;
+
+/* 轻量 SMILES 解析：统计重原子并估算隐式氢（支持常见有机子集/括号原子/支链/环闭合/芳香） */
+function analyzeSmiles(smiles) {
+  const atoms = [];
+  const rings = new Map();
+  const branchStack = [];
+  let prev = -1, pending = null;
+  let i = 0;
+  const pushAtom = (el, aromatic, explicitH) => {
+    atoms.push({ el, aromatic, order: 0, explicitH: explicitH || 0 });
+    const id = atoms.length - 1;
+    if (prev >= 0) {
+      const o = pending == null ? (atoms[prev].aromatic && aromatic ? 1.5 : 1) : pending;
+      atoms[prev].order += o; atoms[id].order += o;
+    }
+    prev = id;
+    pending = null;
+  };
+
+  while (i < smiles.length) {
+    const c = smiles[i];
+    if (c === '(') { branchStack.push(prev); pending = null; i++; continue; }
+    if (c === ')') { prev = branchStack.length ? branchStack.pop() : prev; pending = null; i++; continue; }
+    if (c === '-') { pending = 1; i++; continue; }
+    if (c === '=') { pending = 2; i++; continue; }
+    if (c === '#') { pending = 3; i++; continue; }
+    if (c === ':') { pending = 1.5; i++; continue; }
+    if (c === '.') { prev = -1; pending = null; i++; continue; }
+    if (c === '[') {
+      const close = smiles.indexOf(']', i);
+      const inner = smiles.slice(i + 1, close);
+      const mm = inner.match(/^([A-Z][a-z]?|[a-z])/);
+      let el = 'C', aromatic = false, h = 0;
+      if (mm) {
+        el = mm[1].length === 2 ? (mm[1][0].toUpperCase() + mm[1][1]) : mm[1].toUpperCase();
+        aromatic = mm[1] === mm[1].toLowerCase();
+      }
+      const hm = inner.match(/H(\d*)/);
+      if (hm) h = hm[1] ? parseInt(hm[1], 10) : 1;
+      pushAtom(el, aromatic, h);
+      i = close + 1; continue;
+    }
+    if (c === 'C' && smiles[i + 1] === 'l') { pushAtom('Cl', false, 0); i += 2; continue; }
+    if (c === 'B' && smiles[i + 1] === 'r') { pushAtom('Br', false, 0); i += 2; continue; }
+    if (/[A-Z]/.test(c)) { pushAtom(c, false, 0); i++; continue; }
+    if (/[bcnops]/.test(c)) { pushAtom(c.toUpperCase(), true, 0); i++; continue; }
+    if (/[0-9]/.test(c)) {
+      if (rings.has(c)) {
+        const other = rings.get(c);
+        const o = pending == null ? 1 : pending;
+        atoms[other].order += o; atoms[prev].order += o;
+        rings.delete(c);
+      } else {
+        rings.set(c, prev);
+      }
+      pending = null; i++; continue;
+    }
+    i++;
+  }
+
+  const VAL = { C:4, N:3, O:2, S:2, P:3, F:1, Cl:1, Br:1, I:1, B:3, Si:4 };
+  const counts = {};
+  let hydrogens = 0;
+  atoms.forEach(a => {
+    counts[a.el] = (counts[a.el] || 0) + 1;
+    const target = VAL[a.el] || 0;
+    const h = a.explicitH > 0 ? a.explicitH : Math.max(0, Math.round(target - a.order));
+    hydrogens += h;
+  });
+  if (hydrogens > 0) counts.H = (counts.H || 0) + hydrogens;
+  const text = hillFormula(counts);
+  let mw = 0, total = 0;
+  for (const [el, n] of Object.entries(counts)) { mw += (ATOMIC_WEIGHT[el] || 0) * n; total += n; }
+  return { formula: text, text, mw, atoms: total, counts, hydrogens };
+}
+
+/* ==================== 原子拼装：数据模型 ==================== */
+let atoms = [];          // {id, el, x, y}
+let bonds = [];          // {a, b, order}
+let nextAtomId = 1;
+let selectedAtomId = 0;
+let mode = 'atom';       // atom | bond | erase
+let currentElement = 'C';
+let currentOrder = 1;
+let pendingBondAtom = 0;
+let dragging = null;
+let selectedBond = null;
+
+const ELEMENTS = ['C','H','O','N','S','P','F','Cl','Br','I','B','Si'];
+const ORDERS = [{v:1,t:'单键'},{v:2,t:'双键'},{v:3,t:'三键'}];
+
+const elChips = document.getElementById('elChips');
+ELEMENTS.forEach(el => {
+  const b = document.createElement('button');
+  b.className = 'chip' + (el === currentElement ? ' active' : '');
+  b.textContent = el;
+  b.onclick = () => {
+    currentElement = el;
+    [...elChips.children].forEach(c => c.classList.toggle('active', c.textContent === el));
+  };
+  elChips.appendChild(b);
+});
+
+const orderChips = document.getElementById('orderChips');
+ORDERS.forEach(o => {
+  const b = document.createElement('button');
+  b.className = 'chip' + (o.v === currentOrder ? ' active' : '');
+  b.textContent = o.t;
+  b.onclick = () => {
+    currentOrder = o.v;
+    [...orderChips.children].forEach(c => c.classList.toggle('active', c.textContent === o.t));
+  };
+  orderChips.appendChild(b);
+});
+
+document.querySelectorAll('#toolbar [data-mode]').forEach(btn => {
+  btn.onclick = () => {
+    mode = btn.dataset.mode;
+    document.querySelectorAll('#toolbar [data-mode]').forEach(b =>
+      b.classList.toggle('active', b === btn));
+    pendingBondAtom = 0;
+    drawBuilder();
+  };
+});
+
+document.getElementById('btnClear').onclick = () => {
+  atoms = []; bonds = []; nextAtomId = 1; selectedAtomId = 0; pendingBondAtom = 0; selectedBond = null;
+  drawBuilder(); updateReport();
+};
+
+document.getElementById('btnOptimize').onclick = () => {
+  if (atoms.length < 2) { setReport('<div class="warn">至少放两个原子并连键后再松弛。</div>'); return; }
+  const best = optimizeStructure(atoms, bonds, true);
+  if (best) {
+    // 把最优坐标写回画布
+    atoms.forEach((a, i) => { a.x = best.positions[i][0]; a.y = best.positions[i][1]; });
+    drawBuilder();
+    updateReport('<div class="kv">已按简化力场松弛到能量较低的构型：<b>' + best.energy.toFixed(2) +
+      '</b>（相对单位）。共尝试 ' + (best.trials || 1) + ' 个初始构型。</div>');
+  }
+};
+
+document.getElementById('btnEnumerate').onclick = () => enumerateIsomers();
+document.getElementById('btnFinish').onclick = () => finishBuild();
+
+/* ==================== 画布绘制 ==================== */
+const canvas = document.getElementById('molCanvas');
+const ctx = canvas.getContext('2d');
+const report = document.getElementById('report');
+
+function resizeCanvas() {
+  const wrap = canvas.parentElement;
+  const dpr = window.devicePixelRatio || 1;
+  const w = Math.max(120, wrap.clientWidth), h = Math.max(120, wrap.clientHeight);
+  canvas.width = Math.round(w * dpr);
+  canvas.height = Math.round(h * dpr);
+  canvas.style.width = w + 'px';
+  canvas.style.height = h + 'px';
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+}
+
+function atomRadius(el) { return el === 'H' ? 10 : 13; }
+
+function findAtomAt(x, y) {
+  for (let i = atoms.length - 1; i >= 0; i--) {
+    const a = atoms[i];
+    const dx = a.x - x, dy = a.y - y;
+    if (dx * dx + dy * dy <= (atomRadius(a.el) + 4) * (atomRadius(a.el) + 4)) return a;
+  }
+  return null;
+}
+
+function findBondAt(x, y) {
+  for (const b of bonds) {
+    const a1 = atoms.find(a => a.id === b.a);
+    const a2 = atoms.find(a => a.id === b.b);
+    if (!a1 || !a2) continue;
+    const dx = a2.x - a1.x, dy = a2.y - a1.y;
+    const lenSq = dx * dx + dy * dy;
+    if (lenSq < 1) continue;
+    let t = ((x - a1.x) * dx + (y - a1.y) * dy) / lenSq;
+    t = Math.max(0, Math.min(1, t));
+    const px = a1.x + t * dx, py = a1.y + t * dy;
+    if ((x - px) * (x - px) + (y - py) * (y - py) <= 36) return b;
+  }
+  return null;
+}
+
+function drawBuilder() {
+  const w = parseFloat(canvas.style.width || '0');
+  const h = parseFloat(canvas.style.height || '0');
+  ctx.clearRect(0, 0, w, h);
+  // 背景网格
+  ctx.fillStyle = '#0A0F14';
+  ctx.fillRect(0, 0, w, h);
+  ctx.strokeStyle = '#13202A';
+  ctx.lineWidth = 1;
+  for (let x = 0; x < w; x += 28) {
+    ctx.beginPath(); ctx.moveTo(x + 0.5, 0); ctx.lineTo(x + 0.5, h); ctx.stroke();
+  }
+  for (let y = 0; y < h; y += 28) {
+    ctx.beginPath(); ctx.moveTo(0, y + 0.5); ctx.lineTo(w, y + 0.5); ctx.stroke();
+  }
+
+  // 键
+  for (const b of bonds) {
+    const a1 = atoms.find(a => a.id === b.a);
+    const a2 = atoms.find(a => a.id === b.b);
+    if (!a1 || !a2) continue;
+    drawBond(a1, a2, b.order, b === selectedBond);
+  }
+
+  // 原子
+  atoms.forEach(a => {
+    const r = atomRadius(a.el);
+    ctx.beginPath();
+    ctx.arc(a.x, a.y, r, 0, Math.PI * 2);
+    ctx.fillStyle = a.id === selectedAtomId ? '#00E5FF' : (ELEMENT_COLOR[a.el] || '#93A5B1');
+    ctx.fill();
+    ctx.strokeStyle = a.id === pendingBondAtom ? '#FFD166' : '#0A0F14';
+    ctx.lineWidth = a.id === pendingBondAtom ? 3 : 1.5;
+    ctx.stroke();
+    ctx.fillStyle = a.el === 'H' || a.el === 'S' || a.el === 'F' ? '#0A0F14' : '#04121A';
+    ctx.font = '600 11px "Segoe UI",sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(a.el, a.x, a.y + 0.5);
+  });
+
+  // 连键预览线
+  if (pendingBondAtom) {
+    const a = atoms.find(x => x.id === pendingBondAtom);
+    if (a) {
+      ctx.strokeStyle = 'rgba(255,209,102,0.7)';
+      ctx.setLineDash([5, 4]);
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.arc(a.x, a.y, atomRadius(a.el) + 8, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.setLineDash([]);
+    }
+  }
+}
+
+function drawBond(a1, a2, order, highlight) {
+  const dx = a2.x - a1.x, dy = a2.y - a1.y;
+  const len = Math.sqrt(dx * dx + dy * dy) || 1;
+  const ux = dx / len, uy = dy / len;
+  const nx = -uy, ny = ux;
+  const r1 = atomRadius(a1.el), r2 = atomRadius(a2.el);
+  const sx = a1.x + ux * r1, sy = a1.y + uy * r1;
+  const ex = a2.x - ux * r2, ey = a2.y - uy * r2;
+  const gap = 4;
+  ctx.strokeStyle = highlight ? '#00E5FF' : '#B9D2E0';
+  ctx.lineWidth = highlight ? 3 : 2;
+  const offsets = order === 1 ? [0] : order === 2 ? [-gap, gap] : [-gap * 1.4, 0, gap * 1.4];
+  for (const o of offsets) {
+    ctx.beginPath();
+    ctx.moveTo(sx + nx * o, sy + ny * o);
+    ctx.lineTo(ex + nx * o, ey + ny * o);
+    ctx.stroke();
+  }
+}
+
+/* ==================== 指针交互 ==================== */
+function canvasPoint(ev) {
+  const rect = canvas.getBoundingClientRect();
+  return { x: ev.clientX - rect.left, y: ev.clientY - rect.top };
+}
+
+canvas.addEventListener('pointerdown', ev => {
+  if (ev.button === 2) return;
+  const p = canvasPoint(ev);
+  const atom = findAtomAt(p.x, p.y);
+
+  if (mode === 'erase') {
+    if (atom) {
+      atoms = atoms.filter(a => a.id !== atom.id);
+      bonds = bonds.filter(b => b.a !== atom.id && b.b !== atom.id);
+    } else {
+      const bond = findBondAt(p.x, p.y);
+      if (bond) bonds = bonds.filter(b => b !== bond);
+    }
+    selectedAtomId = 0;
+    selectedBond = null;
+    drawBuilder(); updateReport();
+    return;
+  }
+
+  if (mode === 'bond') {
+    if (!atom) return;
+    selectedBond = null;
+    if (!pendingBondAtom) {
+      pendingBondAtom = atom.id;
+      selectedAtomId = atom.id;
+    } else if (pendingBondAtom === atom.id) {
+      pendingBondAtom = 0;
+    } else {
+      const exists = bonds.find(b =>
+        (b.a === pendingBondAtom && b.b === atom.id) || (b.a === atom.id && b.b === pendingBondAtom));
+      if (exists) exists.order = currentOrder;
+      else bonds.push({ a: pendingBondAtom, b: atom.id, order: currentOrder });
+      pendingBondAtom = 0;
+    }
+    drawBuilder(); updateReport();
+    return;
+  }
+
+  // atom 模式
+  if (atom) {
+    selectedAtomId = atom.id;
+    selectedBond = null;
+    dragging = { id: atom.id, dx: atom.x - p.x, dy: atom.y - p.y };
+    canvas.setPointerCapture(ev.pointerId);
+    drawBuilder();
+  } else {
+    const bond = findBondAt(p.x, p.y);
+    if (bond) {
+      // 点中已有的键：选中它，可用 1/2/3 改键级、Delete 断键
+      selectedBond = bond;
+      selectedAtomId = 0;
+      dragging = null;
+      drawBuilder();
+      return;
+    }
+    const a = { id: nextAtomId++, el: currentElement, x: p.x, y: p.y };
+    atoms.push(a);
+    selectedAtomId = a.id;
+    selectedBond = null;
+    drawBuilder(); updateReport();
+  }
+});
+
+canvas.addEventListener('pointermove', ev => {
+  if (!dragging) return;
+  const p = canvasPoint(ev);
+  const a = atoms.find(x => x.id === dragging.id);
+  if (!a) return;
+  a.x = p.x + dragging.dx;
+  a.y = p.y + dragging.dy;
+  drawBuilder();
+});
+
+canvas.addEventListener('pointerup', () => {
+  if (dragging) { dragging = null; updateReport(); }
+});
+
+canvas.addEventListener('contextmenu', ev => {
+  ev.preventDefault();
+  const p = canvasPoint(ev);
+  const atom = findAtomAt(p.x, p.y);
+  if (atom) {
+    atoms = atoms.filter(a => a.id !== atom.id);
+    bonds = bonds.filter(b => b.a !== atom.id && b.b !== atom.id);
+  } else {
+    const bond = findBondAt(p.x, p.y);
+    if (bond) bonds = bonds.filter(b => b !== bond);
+  }
+  drawBuilder(); updateReport();
+});
+
+window.addEventListener('resize', () => {
+  resizeCanvas(); drawBuilder();
+  if (inorgPane.style.display !== 'none') drawComplexView();
+});
+
+/* ==================== 键盘交互（不插鼠标也能拼装：移动/断键/改键级/完成） ==================== */
+function syncOrderChips() {
+  [...orderChips.children].forEach((c, i) => c.classList.toggle('active', i === currentOrder - 1));
+}
+
+function syncModeChips() {
+  document.querySelectorAll('#toolbar [data-mode]').forEach(b =>
+    b.classList.toggle('active', b.dataset.mode === mode));
+}
+
+function setMode(m) {
+  mode = m;
+  pendingBondAtom = 0;
+  selectedBond = null;
+  syncModeChips();
+  drawBuilder();
+}
+
+function setOrder(v) {
+  currentOrder = v;
+  syncOrderChips();
+  if (selectedBond) {
+    selectedBond.order = v;
+    drawBuilder(); updateReport();
+    return;
+  }
+  // 连键模式下若已选定一个原子，按键级直接改它与另一个选中原子之间的键
+  if (pendingBondAtom) {
+    const partner = bonds.find(b => b.a === pendingBondAtom || b.b === pendingBondAtom);
+    if (partner && selectedAtomId && (partner.a === selectedAtomId || partner.b === selectedAtomId)) {
+      partner.order = v;
+      drawBuilder(); updateReport();
+    }
+  }
+}
+
+function deleteSelection() {
+  if (selectedAtomId) {
+    atoms = atoms.filter(a => a.id !== selectedAtomId);
+    bonds = bonds.filter(b => b.a !== selectedAtomId && b.b !== selectedAtomId);
+    selectedAtomId = 0;
+    selectedBond = null;
+    pendingBondAtom = 0;
+    drawBuilder(); updateReport();
+    return;
+  }
+  if (selectedBond) {
+    bonds = bonds.filter(b => b !== selectedBond);
+    selectedBond = null;
+    drawBuilder(); updateReport();
+  }
+}
+
+document.addEventListener('keydown', ev => {
+  // 只在本页签、且没有输入焦点时响应
+  if (buildPane.style.display === 'none') return;
+  if (ev.target && /^(INPUT|TEXTAREA|SELECT)$/.test(ev.target.tagName)) return;
+  if (ev.ctrlKey || ev.altKey || ev.metaKey) return;
+
+  const step = ev.shiftKey ? 12 : 3;
+  const a = atoms.find(x => x.id === selectedAtomId);
+
+  switch (ev.key) {
+    case 'ArrowLeft': if (a) { a.x -= step; drawBuilder(); ev.preventDefault(); } break;
+    case 'ArrowRight': if (a) { a.x += step; drawBuilder(); ev.preventDefault(); } break;
+    case 'ArrowUp': if (a) { a.y -= step; drawBuilder(); ev.preventDefault(); } break;
+    case 'ArrowDown': if (a) { a.y += step; drawBuilder(); ev.preventDefault(); } break;
+    case 'Delete':
+    case 'Backspace': deleteSelection(); ev.preventDefault(); break;
+    case '1': setOrder(1); break;
+    case '2': setOrder(2); break;
+    case '3': setOrder(3); break;
+    case 'a': case 'A': setMode('atom'); break;
+    case 'b': case 'B': setMode('bond'); break;
+    case 'e': case 'E': setMode('erase'); break;
+    case 'Enter': finishBuild(); ev.preventDefault(); break;
+    case 'Escape':
+      selectedAtomId = 0; selectedBond = null; pendingBondAtom = 0; dragging = null;
+      drawBuilder(); break;
+    default: break;
+  }
+});
+
+/* ==================== 化学计算 ==================== */
+function adjacency() {
+  const adj = atoms.map(() => []);
+  const index = new Map(atoms.map((a, i) => [a.id, i]));
+  bonds.forEach(b => {
+    const i = index.get(b.a), j = index.get(b.b);
+    if (i === undefined || j === undefined) return;
+    adj[i].push({ to: j, order: b.order });
+    adj[j].push({ to: i, order: b.order });
+  });
+  return adj;
+}
+
+function analyzeGraph(els, edgelist) {
+  const n = els.length;
+  const adj = Array.from({ length: n }, () => []);
+  edgelist.forEach(e => {
+    const [i, j, o] = e;
+    adj[i].push({ to: j, order: o });
+    adj[j].push({ to: i, order: o });
+  });
+  const used = adj.map((list, i) => list.reduce((s, x) => s + x.order, 0));
+  const hydrogens = els.reduce((s, el, i) =>
+    s + Math.max(0, (VALENCE[el] || 0) - used[i]), 0);
+  return { els, adj, used, hydrogens };
+}
+
+function hillFormula(counts) {
+  const order = ['C', 'H'];
+  const keys = Object.keys(counts).filter(k => counts[k] > 0);
+  const sorted = keys.filter(k => !order.includes(k)).sort();
+  const out = [];
+  if (counts.C) out.push('C' + (counts.C > 1 ? counts.C : ''));
+  if (counts.H) out.push('H' + (counts.H > 1 ? counts.H : ''));
+  sorted.forEach(k => out.push(k + (counts[k] > 1 ? counts[k] : '')));
+  return out.join('');
+}
+
+function formulaOf(els, hydrogens) {
+  const counts = {};
+  els.forEach(el => counts[el] = (counts[el] || 0) + 1);
+  if (hydrogens > 0) counts.H = (counts.H || 0) + hydrogens;
+  return { counts, text: hillFormula(counts) };
+}
+
+function molecularWeight(counts) {
+  let mw = 0;
+  for (const [el, n] of Object.entries(counts)) mw += (ATOMIC_WEIGHT[el] || 0) * n;
+  return mw;
+}
+
+function degreeOfUnsaturation(counts) {
+  const c = counts.C || 0, h = counts.H || 0, n = counts.N || 0, p = counts.P || 0;
+  const x = (counts.F || 0) + (counts.Cl || 0) + (counts.Br || 0) + (counts.I || 0);
+  if (c === 0) return null;
+  return (2 * c + 2 + n + p - h - x) / 2;
+}
+
+/* 官能团识别（基于图） */
+function functionalGroups(els, edgelist) {
+  const n = els.length;
+  const adj = Array.from({ length: n }, () => []);
+  edgelist.forEach(([i, j, o]) => {
+    adj[i].push({ to: j, order: o });
+    adj[j].push({ to: i, order: o });
+  });
+  const has = (i, el, order) => adj[i].some(x => els[x.to] === el && (!order || x.order === order));
+  const countOf = (i, el, order) => adj[i].filter(x => els[x.to] === el && (!order || x.order === order)).length;
+  const tags = new Set();
+
+  for (let i = 0; i < n; i++) {
+    const el = els[i];
+    if (el === 'C' && countOf(i, 'O', 2) >= 1 && has(i, 'O', 1)) {
+      const oIdx = adj[i].filter(x => els[x.to] === 'O' && x.order === 1).map(x => x.to);
+      const isAcid = oIdx.some(o => adj[o].some(y => els[y.to] === 'H'));
+      const isEster = oIdx.some(o => adj[o].some(y => els[y.to] === 'C'));
+      if (isAcid) tags.add('羧基 –COOH');
+      else if (isEster) tags.add('酯基 –COO–');
+      else tags.add('羧酸衍生物（羰基+单氧）');
+    }
+    if (el === 'C' && countOf(i, 'O', 2) >= 1) {
+      const singleO = countOf(i, 'O', 1);
+      const cCount = countOf(i, 'C', 1);
+      if (singleO === 0 && cCount >= 2) tags.add('酮羰基 C=O');
+      if (singleO === 0 && adj[i].some(x => els[x.to] === 'H')) tags.add('醛基 –CHO');
+    }
+    if (el === 'C' && has(i, 'O', 1) && !has(i, 'O', 2)) {
+      const oIdx = adj[i].filter(x => els[x.to] === 'O' && x.order === 1).map(x => x.to);
+      oIdx.forEach(o => {
+        const others = adj[o].filter(y => y.to !== i);
+        if (others.some(y => els[y.to] === 'C')) tags.add('醚键 C–O–C');
+        else if (others.some(y => els[y.to] === 'H')) tags.add('羟基 –OH');
+        else if (others.length === 0) tags.add('羟基 –OH');
+      });
+    }
+    if (el === 'N') {
+      if (countOf(i, 'C', 1) >= 1 && has(i, 'H')) tags.add('氨基 –NH₂/–NH–');
+      else if (countOf(i, 'C', 1) >= 2) tags.add('胺（叔胺）');
+      if (adj[i].some(x => els[x.to] === 'C' && x.order === 3)) tags.add('氰基 –C≡N');
+    }
+    if (el === 'C' && adj[i].some(x => els[x.to] === 'N' && x.order === 1) && has(i, 'O', 2)) tags.add('酰胺 –CONH–');
+    if (['F','Cl','Br','I'].includes(el)) tags.add('卤代 –' + el);
+  }
+  for (let i = 0; i < n; i++) {
+    for (const x of adj[i]) {
+      if (x.to > i) continue;
+      if (els[i] === 'C' && els[x.to] === 'C') {
+        if (x.order === 2) tags.add('碳碳双键 C=C');
+        if (x.order === 3) tags.add('碳碳三键 C≡C');
+      }
+    }
+  }
+  // 环（环数 = 键数 - 原子数 + 1）
+  const rings = edgelist.length - n + 1;
+  if (rings > 0) tags.add(`环状结构（环数 ${rings}）`);
+  if (tags.size === 0) tags.add('烷烃/单键骨架');
+  return [...tags];
+}
+
+function ringsOf(els, edgelist, adj) {
+  return Math.max(0, edgelist.length - els.length + 1);
+}
+
+/* 当前画布的图 */
+function currentGraph() {
+  const els = atoms.map(a => a.el);
+  const idx = new Map(atoms.map((a, i) => [a.id, i]));
+  const edges = bonds.map(b => [idx.get(b.a), idx.get(b.b), b.order])
+    .filter(e => e[0] !== undefined && e[1] !== undefined);
+  return { els, edges };
+}
+
+function updateReport(extraHtml) {
+  const { els, edges } = currentGraph();
+  if (!els.length) {
+    report.innerHTML = '<div class="muted">画布为空：选择元素后点击空白处添加原子，切到「连键」工具后依次点击两个原子成键。</div>';
+    return;
+  }
+  const info = analyzeGraph(els, edges);
+  const f = formulaOf(els, info.hydrogens);
+  const mw = molecularWeight(f.counts);
+  const dou = degreeOfUnsaturation(f.counts);
+  const rings = ringsOf(els, edges, info.adj);
+  const groups = functionalGroups(els, edges);
+  const tags = groups.map(g => `<span class="tag">${g}</span>`).join('');
+  report.innerHTML =
+    '<h3>分子信息</h3>' +
+    `<div class="kv">分子式：<b>${f.text}</b></div>` +
+    `<div class="kv">分子量：<b>${mw.toFixed(2)}</b> g/mol</div>` +
+    `<div class="kv">重原子：${els.length}　总原子：${els.length + info.hydrogens}（含隐式 H ${info.hydrogens}）</div>` +
+    `<div class="kv">不饱和度：${dou === null ? '—（无碳）' : dou.toFixed(1)}</div>` +
+    `<div class="kv">环数：${rings}</div>` +
+    '<h3>官能团 / 结构特征</h3>' +
+    `<div>${tags}</div>` +
+    (extraHtml ? '<h3>结果</h3>' + extraHtml : '') +
+    '<button class="mini" id="btnCopyFormula">复制分子式</button>';
+  const copyBtn = document.getElementById('btnCopyFormula');
+  if (copyBtn) {
+    copyBtn.onclick = () => {
+      navigator.clipboard && navigator.clipboard.writeText(f.text);
+      copyBtn.textContent = '已复制 ' + f.text;
+    };
+  }
+  bridge({ type: 'meta', smiles: '', formula: f.text, info: { mw, atoms: els.length + info.hydrogens, counts: f.counts } });
+}
+
+function setReport(html) { report.innerHTML = html; }
+
+/* ==================== 同分异构体枚举（开链，重原子 ≤ 7） ==================== */
+function computeIsomers(els, edges, info, f) {
+  const heavy = els.filter(e => e !== 'H');
+  const targetH = info.hydrogens;
+
+  if (heavy.length < 2) return { reason: '<div class="warn">至少需要 2 个重原子才能枚举同分异构体。</div>' };
+  if (heavy.length > 7) {
+    return { reason: '<div class="warn">重原子数 ' + heavy.length + ' > 7，枚举量过大，已跳过。请先拼小分子（如 C4H10、C5H12、C4H10O）。</div>' };
+  }
+  const supported = heavy.every(e => ['C','N','O','S','F','Cl','Br','I','P'].includes(e));
+  if (!supported) return { reason: '<div class="warn">仅支持 C/N/O/S/P/卤素 组成的分子枚举。</div>' };
+
+  const totalValence = heavy.reduce((s, e) => s + (VALENCE[e] || 0), 0);
+  if ((totalValence - targetH) % 2 !== 0) {
+    return { reason: '<div class="warn">价键总数为奇数，结构不合法（检查是否有原子超价或漏氢）。</div>' };
+  }
+
+  const results = [];
+  const seen = new Set();
+  let guard = 0;
+  const limit = 60000;
+
+  // 只枚举"骨架为树"的结构：每个新原子挂到已放置原子的一条键上
+  const elsSorted = heavy.slice();
+  const rem = new Array(elsSorted.length).fill(0);
+  const curEdges = [];
+
+  function keyOf(elsArr, edgesArr) {
+    let labels = elsArr.slice();
+    const nb = Array.from({ length: elsArr.length }, () => []);
+    edgesArr.forEach(([i, j, o]) => {
+      nb[i].push(j + ':' + o);
+      nb[j].push(i + ':' + o);
+    });
+    for (let it = 0; it < 3; it++) {
+      const next = labels.map((l, i) => {
+        const parts = nb[i].map(s => {
+          const [j, o] = s.split(':');
+          return labels[+j] + (o === '2' ? '=' : o === '3' ? '#' : '-');
+        }).sort().join('');
+        return l + '(' + parts + ')';
+      });
+      labels = next.map(s => hash32(s).toString(36));
+    }
+    return edgesArr.map(([i, j, o]) => {
+      const a = labels[i], b = labels[j];
+      return (a < b ? a + '|' + b : b + '|' + a) + ':' + o;
+    }).sort().join(';');
+  }
+
+  function sumRemaining() { return rem.reduce((s, v) => s + v, 0); }
+
+  function dfs(k) {
+    if (guard++ > limit) return;
+    if (k === elsSorted.length) {
+      if (sumRemaining() !== targetH) return;
+      const key = keyOf(elsSorted, curEdges);
+      if (seen.has(key)) return;
+      seen.add(key);
+      results.push(curEdges.map(e => e.slice()));
+      return;
+    }
+    for (let j = 0; j < k; j++) {
+      if (rem[j] < 1) continue;
+      const maxOrder = Math.min(rem[j], VALENCE[elsSorted[k]]);
+      for (let o = 1; o <= maxOrder; o++) {
+        rem[j] -= o;
+        rem[k] = (VALENCE[elsSorted[k]] || 0) - o;
+        curEdges.push([j, k, o]);
+        dfs(k + 1);
+        curEdges.pop();
+        rem[k] = 0;
+        rem[j] += o;
+      }
+    }
+  }
+
+  rem[0] = VALENCE[elsSorted[0]] || 0;
+  dfs(1);
+
+  if (!results.length) {
+    return { reason: '<div class="warn">没有枚举到合法开链异构体（可能含环或价态不匹配）。</div>' };
+  }
+
+  // 松弛并估算相对能量，排序（能量越低越稳定，第一个即默认展示的构型）
+  const scored = results.map(ed => {
+    const opt = optimizeStructure(null, null, false, elsSorted, ed, 60);
+    return { edges: ed, energy: opt ? opt.energy : 1e9, smiles: toSmiles(elsSorted, ed) };
+  }).sort((a, b) => a.energy - b.energy);
+  return { scored, elsSorted, formula: f.text };
+}
+
+/* 每个异构体的结构缩略图（用 SmilesDrawer 渲染到小 canvas） */
+function drawIsoPreviews(scored) {
+  report.querySelectorAll('canvas.isoCanvas').forEach((cv, i) => {
+    if (i >= scored.length) return;
+    try {
+      SmilesDrawer.parse(scored[i].smiles, tree => {
+        const drawer = new SmilesDrawer.Drawer({
+          width: cv.width, height: cv.height,
+          bondThickness: 1.4, bondLength: 16, padding: 8,
+          terminalCarbons: false, compactDrawing: true
+        });
+        drawer.draw(tree, cv, 'dark', false);
+      }, () => {});
+    } catch (_) { /* 缩略图失败不影响主流程 */ }
+  });
+}
+
+function enumerateIsomers() {
+  const { els, edges } = currentGraph();
+  if (!els.length) { setReport('<div class="warn">画布为空。先拼一个分子，或至少放入原子。</div>'); return; }
+  const info = analyzeGraph(els, edges);
+  const f = formulaOf(els, info.hydrogens);
+  const iso = computeIsomers(els, edges, info, f);
+  if (!iso.scored) { setReport(iso.reason); return; }
+
+  const scored = iso.scored;
+  let html = '<div class="kv">分子式 <b>' + f.text + '</b> 的开链同分异构体（共 ' + scored.length +
+    ' 种，按简化力场能量从低到高排列；#1 为默认展示的最低能量构型）：</div>';
+  scored.slice(0, 30).forEach((it, i) => {
+    html += `<div class="iso" data-i="${i}"><b>#${i + 1}</b> ${i === 0 ? '<span class="tag">默认</span>' : ''}
+      <span class="mono">${it.smiles}</span>
+      <span class="muted">　E≈${it.energy.toFixed(1)}</span>
+      <canvas class="isoCanvas" width="280" height="130" style="width:140px;height:65px;display:block;margin-top:4px"></canvas>
+     </div>`;
+  });
+  if (scored.length > 30) html += '<div class="muted">（仅显示前 30 种）</div>';
+  html += '<div class="muted">说明：仅枚举开链结构（不含环状/立体异构）；能量为简化 2D 力场的相对值，越低越稳定。</div>';
+  setReport('<h3>同分异构体</h3>' + html);
+  drawIsoPreviews(scored);
+  report.querySelectorAll('.iso').forEach((el, i) => {
+    el.onclick = () => {
+      const k = +el.dataset.i;
+      loadGraphToCanvas(iso.elsSorted, scored[k].edges);
+      setReport('<div class="kv">已载入异构体 #' + (k + 1) + '：' + scored[k].smiles +
+        '（能量 ' + scored[k].energy.toFixed(1) + '）</div>' +
+        '<div class="muted">可继续拖动原子微调，或点「完成」重新生成报告。</div>');
+    };
+  });
+}
+
+/* ==================== 「完成」：生成结构图 + 全部常用参数 + 异构体 ==================== */
+function finishBuild() {
+  const { els, edges } = currentGraph();
+  if (!els.length) { setReport('<div class="warn">画布为空：先选择元素并放置原子、连键。</div>'); return; }
+  const info = analyzeGraph(els, edges);
+  const f = formulaOf(els, info.hydrogens);
+  const mw = molecularWeight(f.counts);
+  const dou = degreeOfUnsaturation(f.counts);
+  const rings = ringsOf(els, edges, info.adj);
+  const groups = functionalGroups(els, edges);
+  const d = moleculeDescriptors(els, edges);
+  const heavy = els.filter(e => e !== 'H');
+
+  // 1) 松弛到当前连接方式下能量最低的构型并写回画布
+  const best = optimizeStructure(atoms, bonds, true, null, null, 260);
+  if (best) atoms.forEach((a, i) => { a.x = best.positions[i][0]; a.y = best.positions[i][1]; });
+  drawBuilder();
+
+  // 2) 当前分子自身的近似 SMILES（可在 SMILES 页渲染出图样）
+  const mySmiles = toSmiles(els, edges);
+  // 把拼装得到的 SMILES 回填到左侧输入框（C# 侧处理 'smiles' 消息），
+  // 这样用户拼完分子就能直接在 SMILES 页绘制、导出，不再出现「填充区不更新」的问题。
+  bridge({ type: 'smiles', smiles: mySmiles, formula: f.text });
+
+  const tags = groups.map(g => `<span class="tag">${g}</span>`).join('');
+  let html = '<h3>分子常用参数</h3>' +
+    `<div class="kv">分子式：<b>${f.text}</b></div>` +
+    `<div class="kv">相对分子质量：<b>${mw.toFixed(2)}</b> g/mol</div>` +
+    `<div class="kv">不饱和度（DoU）：${dou === null ? '—（无碳）' : dou.toFixed(1)}　环数：${rings}</div>` +
+    `<div class="kv">重原子：${heavy.length}　隐式氢：${info.hydrogens}　总原子：${els.length + info.hydrogens}</div>` +
+    `<div class="kv">氢键供体：${d.hbd}　氢键受体：${d.hba}　可旋转键：${d.rotatable}</div>` +
+    `<div class="kv">原子组成：${d.composition}</div>` +
+    `<div class="kv">简化力场能量：<b>${best ? best.energy.toFixed(2) : '—'}</b>（相对值，越低越稳定）</div>` +
+    '<h3>官能团 / 结构特征</h3>' + `<div>${tags}</div>` +
+    '<h3>2D 结构图</h3>' +
+    `<div class="muted">近似 SMILES：<span class="mono">${mySmiles}</span></div>` +
+    '<canvas id="curStructureCanvas" width="560" height="260" style="width:280px;height:130px;display:block;margin-top:4px;background:#08111A;border:1px solid #16232E;border-radius:4px"></canvas>' +
+    '<button class="mini" id="btnShowStructure">在 SMILES 页查看结构图</button>' +
+    '<h3>同分异构体（能量从低到高）</h3>';
+
+  const iso = computeIsomers(els, edges, info, f);
+  if (iso.scored) {
+    html += `<div class="kv">共 <b>${iso.scored.length}</b> 种开链异构体，#1 为默认的最低能量构型：</div>`;
+    iso.scored.slice(0, 30).forEach((it, i) => {
+      html += `<div class="iso" data-i="${i}"><b>#${i + 1}</b> ${i === 0 ? '<span class="tag">默认 / 最低能量</span>' : ''}
+        <span class="mono">${it.smiles}</span>
+        <span class="muted">　E≈${it.energy.toFixed(1)}</span>
+        <canvas class="isoCanvas" width="280" height="130" style="width:140px;height:65px;display:block;margin-top:4px"></canvas>
+       </div>`;
+    });
+    if (iso.scored.length > 30) html += '<div class="muted">（仅显示前 30 种）</div>';
+  } else {
+    html += iso.reason;
+  }
+
+  setReport(html);
+  if (iso.scored) drawIsoPreviews(iso.scored);
+
+  // 当前分子自身的结构图（SmilesDrawer 渲染；SMILES 不合法时忽略）
+  const curCanvas = document.getElementById('curStructureCanvas');
+  if (curCanvas && mySmiles) {
+    try {
+      SmilesDrawer.parse(mySmiles, tree => {
+        const curDrawer = new SmilesDrawer.Drawer({
+          width: curCanvas.width, height: curCanvas.height,
+          bondThickness: 1.8, bondLength: 26, padding: 16,
+          terminalCarbons: false, compactDrawing: false
+        });
+        curDrawer.draw(tree, curCanvas, 'dark', false);
+      }, () => {});
+    } catch (_) { /* 结构图渲染失败不影响报告 */ }
+  }
+
+  const showBtn = document.getElementById('btnShowStructure');
+  if (showBtn) {
+    showBtn.onclick = () => { switchTab('draw'); render(mySmiles); };
+  }
+  report.querySelectorAll('.iso').forEach(el => {
+    el.onclick = () => {
+      if (!iso.scored) return;
+      const k = +el.dataset.i;
+      loadGraphToCanvas(iso.elsSorted, iso.scored[k].edges);
+      setReport('<div class="kv">已载入异构体 #' + (k + 1) + '：' + iso.scored[k].smiles +
+        '（能量 ' + iso.scored[k].energy.toFixed(1) + '，最低能量构型默认排第一）</div>');
+    };
+  });
+}
+
+/* 常用化学参数估算（HBD / HBA / 可旋转键 / 原子组成） */
+function moleculeDescriptors(els, edges) {
+  const n = els.length;
+  const adj = Array.from({ length: n }, () => []);
+  edges.forEach(([i, j, o]) => {
+    adj[i].push({ to: j, order: o });
+    adj[j].push({ to: i, order: o });
+  });
+  let hbd = 0, hba = 0;
+  const composition = {};
+  els.forEach((el, i) => {
+    composition[el] = (composition[el] || 0) + 1;
+    const used = adj[i].reduce((s, x) => s + x.order, 0);
+    const isH = el !== 'H' && adj[i].some(x => els[x.to] === 'H');
+    if (isH && (el === 'O' || el === 'N')) hbd++;
+    if ((el === 'O' || el === 'N') && used < (VALENCE[el] || 0)) hba++;
+  });
+  // 可旋转键：非环单键，两端都还有其它重原子邻居
+  const rings = Math.max(0, edges.length - n + 1);
+  let rotatable = 0;
+  if (rings === 0) {
+    edges.forEach(([i, j, o]) => {
+      if (o !== 1) return;
+      if (els[i] === 'H' || els[j] === 'H') return;
+      if (adj[i].length > 1 && adj[j].length > 1) rotatable++;
+    });
+  }
+  const compText = Object.entries(composition)
+    .sort((a, b) => (a[0] === 'C' ? -1 : b[0] === 'C' ? 1 : a[0].localeCompare(b[0])))
+    .map(([el, c]) => el + c).join(' ');
+  return { hbd, hba, rotatable, composition: compText };
+}
+
+/* 32 位字符串哈希（用于规范化去重） */
+function hash32(str) {
+  let h = 2166136261;
+  for (let i = 0; i < str.length; i++) {
+    h ^= str.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  return (h >>> 0);
+}
+
+/* 把枚举结果载入画布（自动布局） */
+function loadGraphToCanvas(els, edges) {
+  const w = parseFloat(canvas.style.width || '640');
+  const h = parseFloat(canvas.style.height || '420');
+  const n = els.length;
+  const cx = w / 2, cy = h / 2, R = Math.min(w, h) * 0.32;
+  atoms = els.map((el, i) => ({
+    id: i + 1, el,
+    x: n === 1 ? cx : cx + R * Math.cos(2 * Math.PI * i / n - Math.PI / 2),
+    y: n === 1 ? cy : cy + R * Math.sin(2 * Math.PI * i / n - Math.PI / 2)
+  }));
+  bonds = edges.map(e => ({ a: e[0] + 1, b: e[1] + 1, order: e[2] }));
+  nextAtomId = n + 1;
+  selectedAtomId = 0;
+  // 初步松弛，避免重叠
+  const opt = optimizeStructure(atoms, bonds, false);
+  if (opt) atoms.forEach((a, i) => { a.x = opt.positions[i][0]; a.y = opt.positions[i][1]; });
+  drawBuilder();
+}
+
+/* ==================== 简化 2D 力场（键长 + 键角 + 排斥） ==================== */
+function optimizeStructure(curAtoms, curBonds, multiStart, elsIn, edgesIn, iterations) {
+  const els = elsIn || (curAtoms || atoms).map(a => a.el);
+  const edges = edgesIn || (curBonds || bonds).map(b => {
+    const ia = (curAtoms || atoms).findIndex(x => x.id === b.a);
+    const ib = (curAtoms || atoms).findIndex(x => x.id === b.b);
+    return [ia, ib, b.order];
+  });
+  if (!els.length) return null;
+
+  const n = els.length;
+  const iters = iterations || 160;
+  const trials = multiStart ? 4 : 1;
+  let best = null;
+
+  for (let t = 0; t < trials; t++) {
+    // 初始坐标：优先用画布坐标（单次），多次尝试用随机圆
+    const pos = [];
+    for (let i = 0; i < n; i++) {
+      if (t === 0 && curAtoms && curAtoms[i]) {
+        pos.push([curAtoms[i].x, curAtoms[i].y]);
+      } else {
+        const ang = 2 * Math.PI * i / n + Math.random() * 0.6;
+        const rad = 60 + Math.random() * 90;
+        pos.push([Math.cos(ang) * rad, Math.sin(ang) * rad]);
+      }
+    }
+
+    const adj = Array.from({ length: n }, () => []);
+    edges.forEach(([i, j, o]) => {
+      adj[i].push(j); adj[j].push(i);
+    });
+
+    function targetLength(o) { return o === 2 ? 26 : o === 3 ? 22 : 32; }
+
+    for (let iter = 0; iter < iters; iter++) {
+      // 键长弹簧
+      edges.forEach(([i, j, o]) => {
+        const dx = pos[j][0] - pos[i][0], dy = pos[j][1] - pos[i][1];
+        const d = Math.hypot(dx, dy) || 1e-3;
+        const target = targetLength(o);
+        const diff = (d - target) / d * 0.5;
+        const mx = dx * diff, my = dy * diff;
+        pos[i][0] += mx * 0.5; pos[i][1] += my * 0.5;
+        pos[j][0] -= mx * 0.5; pos[j][1] -= my * 0.5;
+      });
+      // 键角（按中心原子的键级和估计杂化）
+      for (let c = 0; c < n; c++) {
+        if (adj[c].length < 2) continue;
+        const targetAngle = angleTarget(els[c], adj[c].length);
+        for (let a = 0; a < adj[c].length; a++) {
+          for (let b = a + 1; b < adj[c].length; b++) {
+            const i = adj[c][a], j = adj[c][b];
+            const v1 = [pos[i][0] - pos[c][0], pos[i][1] - pos[c][1]];
+            const v2 = [pos[j][0] - pos[c][0], pos[j][1] - pos[c][1]];
+            const l1 = Math.hypot(v1[0], v1[1]) || 1, l2 = Math.hypot(v2[0], v2[1]) || 1;
+            let ang = Math.acos(Math.max(-1, Math.min(1, (v1[0] * v2[0] + v1[1] * v2[1]) / (l1 * l2))));
+            if (isNaN(ang)) continue;
+            const delta = (targetAngle - ang) * 0.08;
+            const u1 = [v1[0] / l1, v1[1] / l1], u2 = [v2[0] / l2, v2[1] / l2];
+            const push1 = [-u2[0] * delta * 18, -u2[1] * delta * 18];
+            const push2 = [-u1[0] * delta * 18, -u1[1] * delta * 18];
+            // 让两端分开（增大夹角）
+            pos[i][0] -= push1[0] * 0.12; pos[i][1] -= push1[1] * 0.12;
+            pos[j][0] -= push2[0] * 0.12; pos[j][1] -= push2[1] * 0.12;
+          }
+        }
+      }
+      // 非键合排斥
+      for (let i = 0; i < n; i++) {
+        for (let j = i + 1; j < n; j++) {
+          const bonded = adj[i].includes(j);
+          const dx = pos[j][0] - pos[i][0], dy = pos[j][1] - pos[i][1];
+          const d = Math.hypot(dx, dy) || 1e-3;
+          const min = bonded ? 20 : 34;
+          if (d < min) {
+            const k = (min - d) / d * 0.35;
+            pos[i][0] -= dx * k; pos[i][1] -= dy * k;
+            pos[j][0] += dx * k; pos[j][1] += dy * k;
+          }
+        }
+      }
+    }
+
+    const energy = energyOf(els, edges, pos);
+    if (!best || energy < best.energy) best = { energy, positions: pos, trials };
+  }
+  return best;
+}
+
+function angleTarget(el, neighbors) {
+  if (neighbors >= 4) return 109.5 * Math.PI / 180;
+  if (neighbors === 3) return 120 * Math.PI / 180;
+  if (neighbors === 2) return el === 'C' ? 120 * Math.PI / 180 : 104.5 * Math.PI / 180;
+  return 120 * Math.PI / 180;
+}
+
+function energyOf(els, edges, pos) {
+  const n = els.length;
+  let e = 0;
+  edges.forEach(([i, j, o]) => {
+    const d = Math.hypot(pos[j][0] - pos[i][0], pos[j][1] - pos[i][1]);
+    const target = o === 2 ? 26 : o === 3 ? 22 : 32;
+    e += 0.5 * (d - target) * (d - target) * 0.01;
+  });
+  const adj = Array.from({ length: n }, () => []);
+  edges.forEach(([i, j]) => { adj[i].push(j); adj[j].push(i); });
+  for (let c = 0; c < n; c++) {
+    if (adj[c].length < 2) continue;
+    const target = angleTarget(els[c], adj[c].length);
+    for (let a = 0; a < adj[c].length; a++) {
+      for (let b = a + 1; b < adj[c].length; b++) {
+        const i = adj[c][a], j = adj[c][b];
+        const v1 = [pos[i][0] - pos[c][0], pos[i][1] - pos[c][1]];
+        const v2 = [pos[j][0] - pos[c][0], pos[j][1] - pos[c][1]];
+        const l1 = Math.hypot(v1[0], v1[1]) || 1, l2 = Math.hypot(v2[0], v2[1]) || 1;
+        const ang = Math.acos(Math.max(-1, Math.min(1, (v1[0] * v2[0] + v1[1] * v2[1]) / (l1 * l2))));
+        if (!isNaN(ang)) e += 0.05 * Math.pow(ang - target, 2) * 10;
+      }
+    }
+  }
+  for (let i = 0; i < n; i++) {
+    for (let j = i + 1; j < n; j++) {
+      if (adj[i].includes(j)) continue;
+      const d = Math.hypot(pos[j][0] - pos[i][0], pos[j][1] - pos[i][1]);
+      if (d < 34) e += 0.4 * (34 - d);
+    }
+  }
+  return e;
+}
+
+/* ==================== 近似 SMILES（用于异构体展示） ==================== */
+function toSmiles(els, edges) {
+  const n = els.length;
+  const adj = Array.from({ length: n }, () => []);
+  edges.forEach(([i, j, o]) => {
+    adj[i].push({ to: j, order: o });
+    adj[j].push({ to: i, order: o });
+  });
+  const visited = new Array(n).fill(false);
+  const bondSym = o => o === 2 ? '=' : o === 3 ? '#' : '';
+  let ringNo = 1;
+  const ringLabels = new Map(); // "i-j" -> 数字编号
+  // SMILES 环闭合编号规范：1–9 用单字符；>9 用 '%' + 两位数字（如 %10）。
+  // 旧实现一律写成 '%1' 属于非法 SMILES，会导致 SmilesDrawer 报「Expected [0-9] but ")" found.」。
+  const ringTag = num => num <= 9 ? String(num) : '%' + String(num).padStart(2, '0');
+
+  function dfs(i, parent) {
+    visited[i] = true;
+    let out = els[i];
+    // 环闭合标记
+    const closes = [];
+    for (const nb of adj[i]) {
+      if (nb.to === parent) continue;
+      if (visited[nb.to]) {
+        const key = i < nb.to ? i + '-' + nb.to : nb.to + '-' + i;
+        if (!ringLabels.has(key)) {
+          if (ringNo > 99) ringNo = 1;
+          ringLabels.set(key, ringNo++);
+        }
+        closes.push(bondSym(nb.order) + ringTag(ringLabels.get(key)));
+      }
+    }
+    out += closes.join('');
+    const forward = adj[i].filter(nb => nb.to !== parent && !visited[nb.to]);
+    forward.forEach((nb, idx) => {
+      out += (idx === 0 ? '' : '(') + bondSym(nb.order) + dfs(nb.to, i);
+      if (idx === 0) return;
+      out += ')';
+    });
+    return out;
+  }
+  let result = '';
+  for (let i = 0; i < n; i++) {
+    if (!visited[i]) result += (result ? '.' : '') + dfs(i, -1);
+  }
+  return result;
+}
+
+/* ==================== 无机化学 / 配合物（几何异构 + 旋光异构） ====================
+   思路：
+   1) 每种几何构型用一组 3D 顶点表示（八面体 / 平面正方形 / 正四面体 / 直线型）。
+   2) 用带符号的坐标轴置换正交算符（3!×2³ = 48 个）筛出「把顶点集合映到自身」的那些，
+      得到该构型的对称群；det=+1 为真旋转，det=-1 为镜面 / 反演（含 Sₙ 旋转反射）。
+   3) 几何异构体 = 配体在顶点上的「着色」，在对称群作用下去重（同一轨道＝同一种异构体）。
+   4) 旋光异构（手性）：若某着色的稳定子中不含任何 det<0 的操作，则该分子与其镜像不可重合 → 手性。 */
+
+const GEOMETRIES = {
+  oct: { name: '八面体 Octahedral (CN=6)', cn: 6,
+    verts: [[1,0,0],[-1,0,0],[0,1,0],[0,-1,0],[0,0,1],[0,0,-1]] },
+  sqp: { name: '平面正方形 Square Planar (CN=4)', cn: 4,
+    verts: [[1,0,0],[0,1,0],[-1,0,0],[0,-1,0]] },
+  tet: { name: '正四面体 Tetrahedral (CN=4)', cn: 4,
+    verts: [[1,1,1],[1,-1,-1],[-1,1,-1],[-1,-1,1]] },
+  lin: { name: '直线型 Linear (CN=2)', cn: 2,
+    verts: [[1,0,0],[-1,0,0]] }
+};
+
+const METALS = ['Co','Cr','Fe','Pt','Cu','Ni','Zn','Pd','Mn','Ag','Au','Al'];
+const METAL_COLOR = { Co:'#6FA8FF', Cr:'#B197FC', Fe:'#FF9F45', Pt:'#9FE3F5', Cu:'#FFB38A',
+  Ni:'#69DB7C', Zn:'#A9BCC9', Pd:'#8FE6FF', Mn:'#FFA8A8', Ag:'#DCEEF7', Au:'#FFD166', Al:'#CFE3EE' };
+
+/* 3!×2³ 个带符号坐标轴置换矩阵（全部 3D 正交格点算符） */
+function axisSignedPerms() {
+  const permsOf3 = [[0,1,2],[0,2,1],[1,0,2],[1,2,0],[2,0,1],[2,1,0]];
+  const ops = [];
+  for (const perm of permsOf3) {
+    for (let m = 0; m < 8; m++) {
+      const s = [(m & 1) ? -1 : 1, (m & 2) ? -1 : 1, (m & 4) ? -1 : 1];
+      const M = [[0,0,0],[0,0,0],[0,0,0]];
+      for (let k = 0; k < 3; k++) M[perm[k]][k] = s[k];
+      ops.push(M);
+    }
+  }
+  return ops;
+}
+function det3(M) {
+  return M[0][0]*(M[1][1]*M[2][2]-M[1][2]*M[2][1])
+       - M[0][1]*(M[1][0]*M[2][2]-M[1][2]*M[2][0])
+       + M[0][2]*(M[1][0]*M[2][1]-M[1][1]*M[2][0]);
+}
+function applyM(M, v) {
+  return [ M[0][0]*v[0]+M[0][1]*v[1]+M[0][2]*v[2],
+           M[1][0]*v[0]+M[1][1]*v[1]+M[1][2]*v[2],
+           M[2][0]*v[0]+M[2][1]*v[1]+M[2][2]*v[2] ];
+}
+const vkey = v => v.map(x => Math.round(x * 1e6) / 1e6).join(',');
+
+/* 构型的对称群：返回 [{perm, det}]，perm[i]=j 表示顶点 i 被映到顶点 j */
+function symmetryOpsOf(verts) {
+  const index = new Map(verts.map((v, i) => [vkey(v), i]));
+  const ops = [];
+  for (const M of axisSignedPerms()) {
+    const perm = [];
+    let ok = true;
+    for (let i = 0; i < verts.length; i++) {
+      const j = index.get(vkey(applyM(M, verts[i])));
+      if (j === undefined) { ok = false; break; }
+      perm[i] = j;
+    }
+    if (ok) ops.push({ perm, det: Math.round(det3(M)) });
+  }
+  return ops;
+}
+
+/* 数组的去重全排列（配体可能有重复，如 4×NH3 + 2×Cl） */
+function uniquePermutations(arr) {
+  const a = arr.slice().sort();
+  const res = [], used = new Array(a.length).fill(false), cur = [];
+  (function bt() {
+    if (cur.length === a.length) { res.push(cur.slice()); return; }
+    for (let i = 0; i < a.length; i++) {
+      if (used[i]) continue;
+      if (i > 0 && a[i] === a[i-1] && !used[i-1]) continue;
+      used[i] = true; cur.push(a[i]); bt(); cur.pop(); used[i] = false;
+    }
+  })();
+  return res;
+}
+
+/* 对称操作作用于着色：原先在顶点 i 的配体被搬到顶点 perm[i] */
+function applyOpToColoring(coloring, op) {
+  const out = new Array(coloring.length);
+  for (let i = 0; i < coloring.length; i++) out[op.perm[i]] = coloring[i];
+  return out;
+}
+const colorKey = c => c.join('|');
+
+/* 按几何位置给出 cis / trans、fac / mer 等常用名称 */
+function classifyIsomer(coloring, geo) {
+  const V = geo.verts;
+  const norm = a => Math.sqrt(a[0]*a[0]+a[1]*a[1]+a[2]*a[2]) || 1;
+  const cos = (i, j) => {
+    const a = V[i], b = V[j];
+    return (a[0]*b[0]+a[1]*b[1]+a[2]*b[2]) / (norm(a) * norm(b));
+  };
+  const byLig = {};
+  coloring.forEach((l, i) => (byLig[l] = byLig[l] || []).push(i));
+  const groups = Object.values(byLig);
+  if (groups.length === 1) return '无异构';
+  if (groups.length === 2) {
+    const minor = groups[0].length <= groups[1].length ? groups[0] : groups[1];
+    if (minor.length === 1) return '单取代';
+    if (minor.length === 2) return cos(minor[0], minor[1]) < -0.5 ? '反式 trans' : '顺式 cis';
+    if (minor.length === 3) {
+      const allAdj = Math.abs(cos(minor[0], minor[1])) < 0.5
+                  && Math.abs(cos(minor[0], minor[2])) < 0.5
+                  && Math.abs(cos(minor[1], minor[2])) < 0.5;
+      return allAdj ? '面式 fac' : '经式 mer';
+    }
+    return '四取代';
+  }
+  return groups.map(g => g.length).join('+') + ' 分布';
+}
+
+/* 构建配合物：枚举几何异构体并判定手性 */
+function buildComplex(metal, geomKey, ligands) {
+  const geo = GEOMETRIES[geomKey];
+  const cn = geo.cn;
+  const ligs = ligands.slice(0, cn);
+  while (ligs.length < cn) ligs.push(ligs.length ? ligs[ligs.length - 1] : 'L');
+  const ops = symmetryOpsOf(geo.verts);
+  const perms = uniquePermutations(ligs);
+  const seen = new Set();
+  const isomers = [];
+  for (const c of perms) {
+    const k = colorKey(c);
+    if (seen.has(k)) continue;
+    // BFS 求该着色所在的对称轨道（轨道大小＝等效排布数）
+    const stack = [c], local = new Set([k]);
+    let orbitSize = 0;
+    while (stack.length) {
+      const cur = stack.pop();
+      orbitSize++;
+      for (const op of ops) {
+        const nc = applyOpToColoring(cur, op);
+        const nk = colorKey(nc);
+        if (!local.has(nk)) { local.add(nk); stack.push(nc); }
+      }
+    }
+    local.forEach(o => seen.add(o));
+    // 稳定子：保持该着色的对称操作；若无 det<0 者则为手性（旋光异构）
+    const stabDets = ops.filter(op => colorKey(applyOpToColoring(c, op)) === k).map(op => op.det);
+    const chiral = !stabDets.some(d => d < 0);
+    isomers.push({ coloring: c, orbitSize, chiral, label: classifyIsomer(c, geo) });
+  }
+  return { metal, geomKey, geo, ligands: ligs, isomers };
+}
+
+/* ---------- 3D 投影与绘制 ---------- */
+function projectVertex(v, ang, tilt) {
+  const ca = Math.cos(ang), sa = Math.sin(ang);
+  const x1 = v[0]*ca + v[2]*sa;
+  const z1 = -v[0]*sa + v[2]*ca;
+  const ct = Math.cos(tilt), st = Math.sin(tilt);
+  const y2 = v[1]*ct - z1*st;
+  const z2 = v[1]*st + z1*ct;
+  return { x: x1, y: y2, depth: z2 };
+}
+
+const SUBSCRIPT = { '0':'₀','1':'₁','2':'₂','3':'₃','4':'₄','5':'₅','6':'₆','7':'₇','8':'₈','9':'₉' };
+function subscriptLabel(s) { return (s || 'L').replace(/\d/g, d => SUBSCRIPT[d] || d); }
+
+function formatComplex(data) {
+  const byLig = {};
+  data.ligands.forEach(l => byLig[l] = (byLig[l] || 0) + 1);
+  const inside = Object.entries(byLig).map(([l, n]) => l + (n > 1 ? n : '')).join('');
+  return '[' + data.metal + '(' + inside + ')]';
+}
+
+function drawComplexOnCanvas(cv, data, showLabel) {
+  const ctx2 = cv.getContext('2d');
+  const dpr = window.devicePixelRatio || 1;
+  const cssW = parseFloat(cv.style.width) || 320;
+  const cssH = parseFloat(cv.style.height) || 240;
+  cv.width = Math.round(cssW * dpr);
+  cv.height = Math.round(cssH * dpr);
+  ctx2.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx2.fillStyle = '#08111A';
+  ctx2.fillRect(0, 0, cssW, cssH);
+
+  const cx = cssW / 2, cy = cssH / 2;
+  const R = Math.min(cssW, cssH) * 0.34;
+  const ang = 0.62, tilt = 0.5;
+  const pts = data.geo.verts.map((v, i) => {
+    const p = projectVertex(v, ang, tilt);
+    return { x: cx + p.x * R, y: cy - p.y * R, depth: p.depth, ligand: data.coloring[i] };
+  });
+  const order = pts.slice().sort((a, b) => a.depth - b.depth);
+
+  // 配位键（后面的先画，颜色更暗表示在金属背后）
+  for (const p of order) {
+    const back = p.depth < -0.02;
+    ctx2.strokeStyle = back ? 'rgba(120,150,175,0.45)' : 'rgba(180,215,235,0.85)';
+    ctx2.lineWidth = back ? 1.4 : 2;
+    ctx2.beginPath(); ctx2.moveTo(cx, cy); ctx2.lineTo(p.x, p.y); ctx2.stroke();
+  }
+
+  // 配体
+  const r = Math.max(13, Math.min(18, cssW * 0.045));
+  for (const p of order) {
+    const back = p.depth < -0.02;
+    ctx2.beginPath(); ctx2.arc(p.x, p.y, r, 0, Math.PI * 2);
+    ctx2.fillStyle = back ? '#16232E' : '#1D2E3B';
+    ctx2.fill();
+    ctx2.strokeStyle = back ? '#2A3B48' : '#3D5A6E';
+    ctx2.lineWidth = 1.4; ctx2.stroke();
+    ctx2.fillStyle = back ? '#8FA9BA' : '#DCEEF7';
+    ctx2.font = '600 ' + Math.round(r * 0.66) + 'px "Segoe UI","Microsoft YaHei",sans-serif';
+    ctx2.textAlign = 'center'; ctx2.textBaseline = 'middle';
+    ctx2.fillText(subscriptLabel(p.ligand), p.x, p.y + 0.5);
+  }
+
+  // 中心金属
+  ctx2.beginPath(); ctx2.arc(cx, cy, r + 3, 0, Math.PI * 2);
+  ctx2.fillStyle = METAL_COLOR[data.metal] || '#9FE3F5';
+  ctx2.fill();
+  ctx2.strokeStyle = '#04121A'; ctx2.lineWidth = 2; ctx2.stroke();
+  ctx2.fillStyle = '#04121A';
+  ctx2.font = '700 12px "Segoe UI",sans-serif';
+  ctx2.textAlign = 'center'; ctx2.textBaseline = 'middle';
+  ctx2.fillText(data.metal, cx, cy + 0.5);
+
+  if (showLabel) {
+    ctx2.fillStyle = '#5B7284';
+    ctx2.font = '12px "Segoe UI","Microsoft YaHei",sans-serif';
+    ctx2.textAlign = 'left'; ctx2.textBaseline = 'alphabetic';
+    ctx2.fillText(formatComplex(data), 10, cssH - 10);
+  }
+}
+
+/* ---------- 页签视图 ---------- */
+const inorgCanvas = document.getElementById('inorgCanvas');
+const inorgReport = document.getElementById('inorgReport');
+let selectedComplexIdx = 0;
+
+function resizeInorgCanvas() {
+  const wrap = inorgCanvas.parentElement;
+  if (!wrap) return;
+  const w = wrap.clientWidth, h = wrap.clientHeight;
+  if (w <= 0 || h <= 0) return;
+  inorgCanvas.style.width = w + 'px';
+  inorgCanvas.style.height = h + 'px';
+}
+
+function drawComplexView() {
+  if (!lastComplex) return;
+  resizeInorgCanvas();
+  const iso = lastComplex.isomers[selectedComplexIdx] || lastComplex.isomers[0];
+  drawComplexOnCanvas(inorgCanvas, {
+    metal: lastComplex.metal, geo: lastComplex.geo,
+    coloring: iso.coloring, ligands: lastComplex.ligands
+  }, true);
+}
+
+function renderComplexReport() {
+  const cx = lastComplex;
+  if (!cx) return;
+  const chiralCount = cx.isomers.filter(i => i.chiral).length;
+  let html = '<h3>配合物</h3>' +
+    `<div class="kv">化学式：<b>${formatComplex(cx)}</b></div>` +
+    `<div class="kv">中心金属：${cx.metal}　几何构型：${cx.geo.name}</div>` +
+    `<div class="kv">几何异构体：<b>${cx.isomers.length}</b> 种　旋光异构（手性）：<b>${chiralCount}</b> 种</div>` +
+    '<div class="muted">判定：几何异构＝配体着色在构型对称群作用下的轨道去重；旋光异构＝该着色稳定子中不含镜面/反演操作（det&lt;0），故与镜像不可重合。</div>' +
+    '<h3>异构体列表（点击查看）</h3>';
+  cx.isomers.forEach((iso, i) => {
+    html += `<div class="cx ${i === selectedComplexIdx ? 'sel' : ''}" data-i="${i}">
+      <b>#${i + 1}</b> <span class="tag">${iso.label}</span>
+      ${iso.chiral ? '<span class="tag chiral">旋光异构（手性）</span>'
+                   : '<span class="tag">非手性（含镜面/反演）</span>'}
+      <span class="muted">等效排布 ${iso.orbitSize} 种</span>
+      <canvas class="cxCanvas" width="300" height="170" style="width:150px;height:85px"></canvas>
+    </div>`;
+  });
+  inorgReport.innerHTML = html;
+  inorgReport.querySelectorAll('.cx').forEach((el, i) => {
+    const iso = cx.isomers[i];
+    drawComplexOnCanvas(el.querySelector('canvas.cxCanvas'),
+      { metal: cx.metal, geo: cx.geo, coloring: iso.coloring, ligands: cx.ligands }, false);
+    el.onclick = () => {
+      selectedComplexIdx = i;
+      drawComplexView();
+      inorgReport.querySelectorAll('.cx').forEach((x, k) => x.classList.toggle('sel', k === i));
+    };
+  });
+}
+
+function doBuildComplex() {
+  const metal = document.getElementById('metalSel').value;
+  const geomKey = document.getElementById('geomSel').value;
+  const geo = GEOMETRIES[geomKey];
+  const raw = document.getElementById('ligandInput').value || '';
+  let ligs = raw.split(/[,，\s]+/).filter(Boolean);
+  if (ligs.length === 0) ligs = new Array(geo.cn).fill('L');
+  lastComplex = buildComplex(metal, geomKey, ligs);
+  selectedComplexIdx = 0;
+  renderComplexReport();
+  drawComplexView();
+}
+
+function initInorg() {
+  const metalSel = document.getElementById('metalSel');
+  METALS.forEach(m => {
+    const o = document.createElement('option'); o.value = m; o.textContent = m; metalSel.appendChild(o);
+  });
+  metalSel.value = 'Co';
+
+  const geomSel = document.getElementById('geomSel');
+  Object.entries(GEOMETRIES).forEach(([k, g]) => {
+    const o = document.createElement('option'); o.value = k; o.textContent = g.name; geomSel.appendChild(o);
+  });
+  geomSel.value = 'oct';
+  geomSel.onchange = () => {
+    const g = GEOMETRIES[geomSel.value];
+    const cur = (document.getElementById('ligandInput').value || '').split(/[,，\s]+/).filter(Boolean);
+    while (cur.length < g.cn) cur.push(cur.length ? cur[cur.length - 1] : 'L');
+    cur.length = g.cn;
+    document.getElementById('ligandInput').value = cur.join(', ');
+  };
+
+  document.getElementById('btnBuildComplex').onclick = doBuildComplex;
+  document.getElementById('btnPresetOct').onclick = () => {
+    metalSel.value = 'Co'; geomSel.value = 'oct';
+    document.getElementById('ligandInput').value = 'NH3, NH3, NH3, NH3, Cl, Cl';
+    doBuildComplex();
+  };
+  document.getElementById('btnPresetSqp').onclick = () => {
+    metalSel.value = 'Pt'; geomSel.value = 'sqp';
+    document.getElementById('ligandInput').value = 'NH3, NH3, Cl, Cl';
+    doBuildComplex();
+  };
+  doBuildComplex();
+}
+
+/* ==================== 启动 ==================== */
+resizeCanvas();
+drawBuilder();
+initInorg();
+
+if (window.chrome && window.chrome.webview) {
+  window.chrome.webview.addEventListener('message', ev => {
+    const msg = ev.data || {};
+    if (msg.type === 'render') { switchTab('draw'); render(msg.smiles); }
+    else if (msg.type === 'export-svg') bridge({ type: 'export', format: 'svg', data: exportSvg() });
+    else if (msg.type === 'export-png') exportPng();
+  });
+  window.chrome.webview.postMessage({ type: 'ready' });
+}
+
+/* ==================== 导出 ==================== */
+function exportSvg() {
+  const canvas = stage.querySelector('canvas');
+  if (!canvas) return '';
+  // SmilesDrawer 2.4.1 的矢量输出需要内部 graph；这里用 PNG 嵌入 SVG，保证导出的 SVG 在任意查看器可用。
+  const data = canvas.toDataURL('image/png');
+  return '<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" '
+    + `width="${canvas.width / 2}" height="${canvas.height / 2}" viewBox="0 0 ${canvas.width} ${canvas.height}">`
+    + '<rect width="100%" height="100%" fill="#0A0F14"/>'
+    + `<image x="0" y="0" width="${canvas.width}" height="${canvas.height}" xlink:href="${data}"/>`
+    + '</svg>';
+}
+
+function exportPng() {
+  const canvas = stage.querySelector('canvas');
+  if (!canvas) return;
+  bridge({ type: 'export', format: 'png', data: canvas.toDataURL('image/png').split(',')[1] });
+}
+</script>
+</body>
+</html>

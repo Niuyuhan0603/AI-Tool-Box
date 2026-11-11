@@ -1,0 +1,304 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Page
+    x:Class="AI_Tool_Box.Views.AnswerSharePage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:vm="using:AI_Tool_Box.ViewModels"
+    xmlns:svc="using:AI_Tool_Box.Services"
+    xmlns:mdl="using:AI_Tool_Box.Models"
+    xmlns:converters="using:AI_Tool_Box.Converters"
+    xmlns:controls="using:Microsoft.UI.Xaml.Controls">
+
+    <Grid Padding="16" RowSpacing="12" Background="{ThemeResource ApplicationPageBackgroundThemeBrush}">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <!-- ===== Row 0：顶部操作栏（行1：按钮+本机信息+注入；行2：全宽说明文字） ===== -->
+        <StackPanel Grid.Row="0" Spacing="6">
+            <Grid ColumnSpacing="12">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+
+                <Button Grid.Column="0"
+                        Content="{x:Bind ViewModel.ShareButtonText, Mode=OneWay}"
+                        MinWidth="110"
+                        Command="{x:Bind ViewModel.ToggleSharingCommand}"/>
+                <TextBlock Grid.Column="1"
+                           Text="{x:Bind ViewModel.InfoText, Mode=OneWay}"
+                           VerticalAlignment="Center"
+                           FontFamily="Consolas"
+                           TextTrimming="CharacterEllipsis"
+                           Foreground="{ThemeResource AccentFillColorDefaultBrush}"/>
+                <Button Grid.Column="2"
+                        Content="注入答案到当前网页焦点"
+                        Style="{StaticResource AccentButtonStyle}"
+                        Command="{x:Bind ViewModel.InjectSelectedAnswerCommand}"/>
+            </Grid>
+            <TextBlock Text="题库分享 → UDP 9529（广播/查询）+ TCP 9530（结果推送）。同网段另一台电脑本软件开启“开启共享”即可互相搜题。"
+                       FontSize="12"
+                       Foreground="{ThemeResource SystemControlPageTextBaseMediumBrush}"
+                       TextWrapping="Wrap"/>
+        </StackPanel>
+
+        <!-- ===== Row 1：主体（左：我的题库+编辑；中：局域网搜索；右：共享设置） ===== -->
+        <Grid Grid.Row="1" ColumnSpacing="12">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="1.2*"/>
+                <ColumnDefinition Width="1.3*"/>
+                <ColumnDefinition Width="0.9*"/>
+            </Grid.ColumnDefinitions>
+
+            <!-- 列 0：我的题库（上：列表；下：编辑表单） -->
+            <Border Grid.Column="0"
+                    Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                    BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                    BorderThickness="1" CornerRadius="8" Padding="8">
+                <Grid RowSpacing="8">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+
+                    <TextBlock Grid.Row="0" Text="我的题库（本地）" Style="{StaticResource SubtitleTextBlockStyle}"/>
+
+                    <!-- 本地搜索 -->
+                    <StackPanel Grid.Row="1" Orientation="Horizontal" Spacing="6">
+                        <TextBox Text="{x:Bind ViewModel.LocalSearchKeyword, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                 PlaceholderText="本地搜索关键词…" HorizontalAlignment="Stretch"/>
+                        <Button Content="搜索" Command="{x:Bind ViewModel.SearchLocalCommand}"/>
+                    </StackPanel>
+
+                    <!-- 列表：随本地搜索关键词过滤；点击进入编辑模式 -->
+                    <ListView Grid.Row="2"
+                              ItemsSource="{x:Bind ViewModel.LocalView, Mode=OneWay}"
+                              SelectionMode="Single"
+                              SelectedItem="{x:Bind ViewModel.SelectedLocalItem, Mode=TwoWay}">
+                        <ListView.ItemTemplate>
+                            <DataTemplate x:DataType="mdl:AnswerItem">
+                                <Grid Padding="6,3" Tapped="OnAnswerItemTapped">
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="Auto"/>
+                                    </Grid.RowDefinitions>
+                                    <TextBlock Grid.Row="0"
+                                               FontFamily="Consolas"
+                                               FontWeight="SemiBold"
+                                               TextTrimming="CharacterEllipsis"
+                                               Text="{x:Bind DisplayQuestion, Mode=OneTime}"/>
+                                    <TextBlock Grid.Row="1"
+                                               FontSize="12"
+                                               Foreground="{ThemeResource SystemControlPageTextBaseMediumBrush}"
+                                               TextTrimming="CharacterEllipsis"
+                                               Text="{x:Bind Answer, Mode=OneTime}"/>
+                                </Grid>
+                            </DataTemplate>
+                        </ListView.ItemTemplate>
+                    </ListView>
+
+                    <!-- 新建条目：立即入库并在上方列表显示；清空编辑：空白草稿直接移出题库 -->
+                    <StackPanel Grid.Row="3" Orientation="Horizontal" Spacing="8">
+                        <Button Content="新建条目"
+                                Style="{StaticResource AccentButtonStyle}"
+                                Command="{x:Bind ViewModel.NewCommand}"
+                                ToolTipService.ToolTip="在“我的题库”顶部新建一条空白条目并进入编辑"/>
+                        <Button Content="清空编辑"
+                                Command="{x:Bind ViewModel.ClearEditCommand}"
+                                ToolTipService.ToolTip="清空编辑表单；若当前条目尚未填写内容，将一并从题库移除"/>
+                    </StackPanel>
+                </Grid>
+            </Border>
+
+            <!-- 列 1：编辑表单（上）+ 局域网搜索（下） -->
+            <Grid Grid.Column="1" RowSpacing="12">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="*"/>
+                    <RowDefinition Height="*"/>
+                </Grid.RowDefinitions>
+
+                <!-- 编辑表单（MinHeight 保证答案输入框有足够的多行编辑空间） -->
+                <Border Grid.Row="0" MinHeight="360"
+                        Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                        BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                        BorderThickness="1" CornerRadius="8" Padding="8">
+                    <Grid RowSpacing="6">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="*"/>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                        </Grid.RowDefinitions>
+                        <TextBlock Grid.Row="0" Text="编辑 / 新建" Style="{StaticResource SubtitleTextBlockStyle}"/>
+                        <Grid Grid.Row="1" ColumnSpacing="6">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBox Grid.Column="0"
+                                     Header="题号"
+                                     Text="{x:Bind ViewModel.EditNo, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                     MinWidth="90" PlaceholderText="可选"/>
+                            <TextBox Grid.Column="1"
+                                     Header="题干（Question）"
+                                     Text="{x:Bind ViewModel.EditQuestion, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                     TextWrapping="Wrap" AcceptsReturn="True" MinHeight="52"/>
+                        </Grid>
+                        <TextBox Grid.Row="2"
+                                 Header="答案（Answer，支持多行 / 缩进 / 格式）"
+                                 Text="{x:Bind ViewModel.EditAnswer, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                 TextWrapping="Wrap" AcceptsReturn="True" MinHeight="110"
+                                 FontFamily="Consolas"/>
+                        <StackPanel Grid.Row="3" Orientation="Horizontal" Spacing="8">
+                            <Button Content="保存"
+                                    Style="{StaticResource AccentButtonStyle}"
+                                    Command="{x:Bind ViewModel.SaveCurrentCommand}"/>
+                            <Button Content="删除" Command="{x:Bind ViewModel.DeleteCurrentCommand}"/>
+                            <Button Content="从文件导入答案…" Command="{x:Bind ViewModel.ImportAnswerFileCommand}"
+                                    ToolTipService.ToolTip="从 .txt / .md / .csv 文件导入答案（保留换行与缩进）"/>
+                        </StackPanel>
+                        <StackPanel Grid.Row="4" Orientation="Horizontal" Spacing="8">
+                            <TextBox Grid.Row="4"
+                                     Header="标签（Tags，逗号分隔）"
+                                     Text="{x:Bind ViewModel.EditTags, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                     MinWidth="200"/>
+                            <TextBlock Text="{x:Bind ViewModel.Editing.Id, Mode=OneWay}"
+                                       VerticalAlignment="Bottom"
+                                       Margin="0,0,0,8"
+                                       FontSize="11"
+                                       FontFamily="Consolas"
+                                       Foreground="{ThemeResource SystemControlPageTextBaseMediumBrush}"/>
+                        </StackPanel>
+                    </Grid>
+                </Border>
+
+                <!-- 局域网搜索 -->
+                <Border Grid.Row="1"
+                        Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                        BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                        BorderThickness="1" CornerRadius="8" Padding="8">
+                    <Grid RowSpacing="6">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="*"/>
+                        </Grid.RowDefinitions>
+                        <TextBlock Grid.Row="0" Text="局域网搜索（搜同网段共享题库）" Style="{StaticResource SubtitleTextBlockStyle}"/>
+                        <Grid Grid.Row="1" ColumnSpacing="6">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBox Grid.Column="0"
+                                     PlaceholderText="关键词（如：拉格朗日中值定理）"
+                                     Text="{x:Bind ViewModel.LanSearchKeyword, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
+                            <Button Grid.Column="1"
+                                    Content="搜索"
+                                    Style="{StaticResource AccentButtonStyle}"
+                                    Command="{x:Bind ViewModel.SearchLanCommand}"
+                                    IsEnabled="{x:Bind ViewModel.IsSharing, Mode=OneWay}"/>
+                        </Grid>
+                        <ListView Grid.Row="2"
+                                  ItemsSource="{x:Bind ViewModel.LanResults, Mode=OneWay}"
+                                  SelectedItem="{x:Bind ViewModel.SelectedMatch, Mode=TwoWay}">
+                            <ListView.ItemTemplate>
+                                <DataTemplate x:DataType="mdl:AnswerMatch">
+                                    <Grid Padding="6,3">
+                                        <Grid.RowDefinitions>
+                                            <RowDefinition Height="Auto"/>
+                                            <RowDefinition Height="Auto"/>
+                                            <RowDefinition Height="Auto"/>
+                                        </Grid.RowDefinitions>
+                                        <TextBlock Grid.Row="0" FontWeight="SemiBold" TextTrimming="CharacterEllipsis">
+                                            <Run Text="{x:Bind Item.FullQuestion, Mode=OneTime}"/>
+                                            <Run Text=" — 来源："/>
+                                            <Run Text="{x:Bind SourceName, Mode=OneTime}"/>
+                                        </TextBlock>
+                                        <TextBlock Grid.Row="1"
+                                                   FontSize="12"
+                                                   Foreground="{ThemeResource SystemControlPageTextBaseMediumBrush}"
+                                                   TextWrapping="Wrap"
+                                                   Text="{x:Bind Item.Answer, Mode=OneTime}"
+                                                   MaxLines="2"
+                                                   TextTrimming="CharacterEllipsis"/>
+                                        <TextBlock Grid.Row="2"
+                                                   FontSize="11"
+                                                   FontFamily="Consolas"
+                                                   Foreground="{ThemeResource SystemControlPageTextBaseMediumBrush}"
+                                                   Text="{x:Bind SourceIp, Mode=OneTime}"/>
+                                    </Grid>
+                                </DataTemplate>
+                            </ListView.ItemTemplate>
+                        </ListView>
+                    </Grid>
+                </Border>
+            </Grid>
+
+            <!-- 列 2：共享设置（模式 + 黑白名单 + 自动启动/每设备条数） -->
+            <Border Grid.Column="2"
+                    Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                    BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                    BorderThickness="1" CornerRadius="8" Padding="8">
+                <Grid RowSpacing="10">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
+                    <TextBlock Grid.Row="0" Text="共享设置" Style="{StaticResource SubtitleTextBlockStyle}"/>
+
+                    <StackPanel Grid.Row="1" Spacing="4">
+                        <TextBlock Text="访问控制模式："/>
+                        <ComboBox SelectedIndex="{x:Bind ViewModel.ModeInt, Mode=TwoWay}">
+                            <x:String>黑名单模式（默认允许，黑名单拒绝）</x:String>
+                            <x:String>白名单模式（仅白名单允许）</x:String>
+                        </ComboBox>
+                    </StackPanel>
+
+                    <StackPanel Grid.Row="2" Spacing="4">
+                        <TextBlock Text="黑名单 IP（逗号分隔）："/>
+                        <TextBox Text="{x:Bind ViewModel.BlacklistCsv, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                 PlaceholderText="例：192.168.1.88,192.168.1.99"/>
+                    </StackPanel>
+
+                    <StackPanel Grid.Row="3" Spacing="4">
+                        <TextBlock Text="白名单 IP（逗号分隔）："/>
+                        <TextBox Text="{x:Bind ViewModel.WhitelistCsv, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                 PlaceholderText="例：192.168.1.10,192.168.1.20"/>
+                    </StackPanel>
+
+                    <StackPanel Grid.Row="4" Spacing="4">
+                        <TextBlock Text="每台设备最多返回条数："/>
+                        <NumberBox Value="{x:Bind ViewModel.Settings.MaxMatchesPerPeer, Mode=TwoWay}"
+                                   Minimum="1" Maximum="50"/>
+                        <CheckBox Content="启动软件时自动开启共享"
+                                  IsChecked="{x:Bind ViewModel.Settings.AutoStartSharing, Mode=TwoWay}"/>
+                        <Button Content="保存设置" Command="{x:Bind ViewModel.SaveSettingsCommand}"/>
+                    </StackPanel>
+
+                    <TextBlock Grid.Row="5"
+                               TextWrapping="Wrap"
+                               FontSize="12"
+                               Foreground="{ThemeResource SystemControlPageTextBaseMediumBrush}"
+                               Text="提示：黑白名单立即作用于接收的 UDP 查询；设置更改后请点击“保存设置”写入 JSON 文件（下次启动自动加载）。题库数据路径 answers.json、设置路径 ans_settings.json 位于 %LOCALAPPDATA%\AI-Tool-Box\webdata。"/>
+                </Grid>
+            </Border>
+        </Grid>
+
+        <!-- ===== Row 2：状态栏 ===== -->
+        <TextBlock Grid.Row="2"
+                   Text="{x:Bind ViewModel.Status, Mode=OneWay}"
+                   Foreground="{ThemeResource SystemControlPageTextBaseMediumBrush}"
+                   TextTrimming="CharacterEllipsis"/>
+    </Grid>
+</Page>

@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Window
+    x:Class="AI_Tool_Box.Views.BrowserTearoutWindow"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <!-- 独立浏览器窗口（标签拖出 tear-out 的卫星窗口）：
+         ShellSlot 承载卫星 WebShell 实例（传 URL 重建标签，登录态经共享 WebView2 Profile 保持）。 -->
+    <Grid Background="{ThemeResource ApplicationPageBackgroundThemeBrush}">
+        <Border x:Name="ShellSlot"
+                HorizontalAlignment="Stretch"
+                VerticalAlignment="Stretch"/>
+    </Grid>
+</Window>

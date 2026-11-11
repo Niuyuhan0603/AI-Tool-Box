@@ -1,0 +1,423 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Page
+    x:Class="AI_Tool_Box.Views.TransformPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:controls="using:Microsoft.UI.Xaml.Controls"
+    xmlns:vm="using:AI_Tool_Box.ViewModels"
+    xmlns:conv="using:AI_Tool_Box.Converters">
+
+    <Page.Resources>
+        <conv:BoolToStringConverter x:Key="RunningText" TrueValue="运行中…请稍候" FalseValue="开始转换"/>
+        <conv:ProgressToPercentConverter x:Key="ProgressPct"/>
+        <conv:InverseBoolConverter x:Key="InvBool"/>
+    </Page.Resources>
+
+    <!-- 整页上下滚动：小窗口下所有卡片均可滑动查看 -->
+    <ScrollViewer Background="{ThemeResource ApplicationPageBackgroundThemeBrush}"
+                  HorizontalScrollMode="Disabled"
+                  VerticalScrollMode="Auto"
+                  VerticalScrollBarVisibility="Auto">
+    <Grid Padding="16" RowSpacing="8">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <!-- 标题 -->
+        <StackPanel Grid.Row="0" Orientation="Horizontal" Spacing="12">
+            <TextBlock Text="文件转换" FontSize="24" FontWeight="Bold" VerticalAlignment="Center"/>
+            <TextBlock Text="（办公文件 / 音视频处理 两类；选中某个选项后展开其参数）"
+                       Opacity="0.8" VerticalAlignment="Center" TextWrapping="Wrap"/>
+        </StackPanel>
+
+        <!-- FFmpeg 设置（默认折叠，仅音视频转换需要） -->
+        <controls:Expander Grid.Row="1" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch"
+                           Margin="0,8" IsExpanded="False">
+            <controls:Expander.Header>
+                <TextBlock Text="FFmpeg 设置（音视频转换使用，默认折叠）" FontWeight="SemiBold"/>
+            </controls:Expander.Header>
+            <StackPanel Spacing="8" Margin="0,8,0,0">
+                <Grid ColumnSpacing="8">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+                    <TextBox Grid.Column="0"
+                             Text="{x:Bind ViewModel.CustomFfmpegPath, Mode=TwoWay}"
+                             PlaceholderText="留空 = 默认解析（应用目录 Assets\ffmpeg.exe → 系统 PATH）"
+                             Header="自定义 ffmpeg.exe 路径（可空）"/>
+                    <Button Grid.Column="1" Content="浏览…" Command="{x:Bind ViewModel.BrowseFfmpegCommand}" VerticalAlignment="Bottom"/>
+                    <Button Grid.Column="2" Content="恢复默认" Command="{x:Bind ViewModel.ResetFfmpegCommand}" VerticalAlignment="Bottom"/>
+                </Grid>
+                <StackPanel Orientation="Horizontal" Spacing="8" Opacity="0.85" VerticalAlignment="Center">
+                    <TextBlock Text="当前生效：" VerticalAlignment="Center"/>
+                    <TextBlock Text="{x:Bind ViewModel.FfmpegPath, Mode=OneWay}" TextTrimming="CharacterEllipsis" MaxWidth="420" VerticalAlignment="Center"/>
+                    <Button Content="刷新检测" Command="{x:Bind ViewModel.RefreshFfmpegCommand}" Padding="6,0" Height="28" VerticalAlignment="Center"/>
+                    <HyperlinkButton NavigateUri="https://www.gyan.dev/ffmpeg/builds/" Content="去下载 FFmpeg" Padding="0"/>
+                </StackPanel>
+            </StackPanel>
+        </controls:Expander>
+
+        <!-- 左右两列：左=办公文件  右=音视频处理 -->
+        <Grid Grid.Row="2" ColumnSpacing="16" Margin="0,8">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="*"/>
+            </Grid.ColumnDefinitions>
+
+            <!-- ==================== 左列：办公文件 ==================== -->
+            <Border Grid.Column="0"
+                    Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                    BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                    BorderThickness="1" CornerRadius="8" Padding="12">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+                    <StackPanel Grid.Row="0" Orientation="Horizontal" Spacing="8" Margin="0,0,0,8">
+                        <TextBlock Text="办公文件" FontSize="18" FontWeight="SemiBold" VerticalAlignment="Center"/>
+                        <TextBlock Text="Word / PDF / 图片文档" Opacity="0.7" FontSize="12" VerticalAlignment="Center"/>
+                    </StackPanel>
+
+                    <ScrollViewer Grid.Row="1" MaxHeight="600"
+                                  VerticalScrollMode="Auto" VerticalScrollBarVisibility="Auto"
+                                  HorizontalScrollMode="Disabled">
+                        <StackPanel Spacing="10">
+                            <controls:RadioButtons x:Name="OfficeSelector" SelectionChanged="OnOfficeSelectionChanged">
+                                <x:String>Word → PDF</x:String>
+                                <x:String>PDF → Word</x:String>
+                                <x:String>图片 → PDF</x:String>
+                                <x:String>PDF 合并</x:String>
+                                <x:String>PDF → PNG</x:String>
+                            </controls:RadioButtons>
+
+                            <!-- 明细：DOCX → PDF -->
+                            <Border x:Name="OfficeDocxToPdfPanel" Visibility="Collapsed"
+                                    Background="{ThemeResource LayerFillColorDefaultBrush}"
+                                    BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                                    BorderThickness="1" CornerRadius="6" Padding="12">
+                                <StackPanel Spacing="8">
+                                    <TextBlock Text="将 .docx 本地渲染为 PDF（保留段落与标题层级，正确显示中文）。"
+                                               TextWrapping="Wrap" Opacity="0.8" FontSize="12"/>
+                                    <Grid ColumnSpacing="8">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <TextBox Grid.Column="0" Text="{x:Bind ViewModel.InputPath, Mode=TwoWay}"
+                                                 PlaceholderText="源 .docx 文件路径…" Header="输入文件"/>
+                                        <Button Grid.Column="1" Content="选取…" Command="{x:Bind ViewModel.PickInputFileCommand}" VerticalAlignment="Bottom"/>
+                                    </Grid>
+                                    <Grid ColumnSpacing="8">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <TextBox Grid.Column="0" Text="{x:Bind ViewModel.OutputPath, Mode=TwoWay}"
+                                                 PlaceholderText="输出 .pdf 路径…" Header="输出文件"/>
+                                        <Button Grid.Column="1" Content="另存为…" Command="{x:Bind ViewModel.PickOutputFileCommand}" VerticalAlignment="Bottom"/>
+                                    </Grid>
+                                    <Grid ColumnSpacing="12">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto"/>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <Button Grid.Column="0"
+                                                Content="{x:Bind ViewModel.IsBusy, Mode=OneWay, Converter={StaticResource RunningText}}"
+                                                Click="OnRunDocxToPdf"
+                                                IsEnabled="{x:Bind ViewModel.IsBusy, Mode=OneWay, Converter={StaticResource InvBool}}"
+                                                Style="{StaticResource AccentButtonStyle}" MinWidth="120"/>
+                                        <ProgressBar Grid.Column="1" Value="{x:Bind ViewModel.Progress, Mode=OneWay}" Minimum="0" Maximum="1" Height="8" VerticalAlignment="Center"/>
+                                        <TextBlock Grid.Column="2" Text="{x:Bind ViewModel.Progress, Mode=OneWay, Converter={StaticResource ProgressPct}}" VerticalAlignment="Center" MinWidth="60" TextAlignment="Right"/>
+                                    </Grid>
+                                    <TextBlock Text="{x:Bind ViewModel.Status, Mode=OneWay}" TextWrapping="Wrap" Opacity="0.85"/>
+                                </StackPanel>
+                            </Border>
+
+                            <!-- 明细：PDF → DOCX -->
+                            <Border x:Name="OfficePdfToDocxPanel" Visibility="Collapsed"
+                                    Background="{ThemeResource LayerFillColorDefaultBrush}"
+                                    BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                                    BorderThickness="1" CornerRadius="6" Padding="12">
+                                <StackPanel Spacing="8">
+                                    <TextBlock Text="用 PDF 引擎提取文字（支持中文）并写出 .docx；扫描件/图片型 PDF 请改用本地 OCR。"
+                                               TextWrapping="Wrap" Opacity="0.8" FontSize="12"/>
+                                    <Grid ColumnSpacing="8">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <TextBox Grid.Column="0" Text="{x:Bind ViewModel.InputPath, Mode=TwoWay}"
+                                                 PlaceholderText="源 .pdf 文件路径…" Header="输入文件"/>
+                                        <Button Grid.Column="1" Content="选取…" Command="{x:Bind ViewModel.PickInputFileCommand}" VerticalAlignment="Bottom"/>
+                                    </Grid>
+                                    <Grid ColumnSpacing="8">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <TextBox Grid.Column="0" Text="{x:Bind ViewModel.OutputPath, Mode=TwoWay}"
+                                                 PlaceholderText="输出 .docx 路径…" Header="输出文件"/>
+                                        <Button Grid.Column="1" Content="另存为…" Command="{x:Bind ViewModel.PickOutputFileCommand}" VerticalAlignment="Bottom"/>
+                                    </Grid>
+                                    <Grid ColumnSpacing="12">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto"/>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <Button Grid.Column="0"
+                                                Content="{x:Bind ViewModel.IsBusy, Mode=OneWay, Converter={StaticResource RunningText}}"
+                                                Click="OnRunPdfToDocx"
+                                                IsEnabled="{x:Bind ViewModel.IsBusy, Mode=OneWay, Converter={StaticResource InvBool}}"
+                                                Style="{StaticResource AccentButtonStyle}" MinWidth="120"/>
+                                        <ProgressBar Grid.Column="1" Value="{x:Bind ViewModel.Progress, Mode=OneWay}" Minimum="0" Maximum="1" Height="8" VerticalAlignment="Center"/>
+                                        <TextBlock Grid.Column="2" Text="{x:Bind ViewModel.Progress, Mode=OneWay, Converter={StaticResource ProgressPct}}" VerticalAlignment="Center" MinWidth="60" TextAlignment="Right"/>
+                                    </Grid>
+                                    <TextBlock Text="{x:Bind ViewModel.Status, Mode=OneWay}" TextWrapping="Wrap" Opacity="0.85"/>
+                                </StackPanel>
+                            </Border>
+
+                            <!-- 明细：图片 → PDF -->
+                            <Border x:Name="OfficeImagesToPdfPanel" Visibility="Collapsed"
+                                    Background="{ThemeResource LayerFillColorDefaultBrush}"
+                                    BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                                    BorderThickness="1" CornerRadius="6" Padding="12">
+                                <StackPanel Spacing="8">
+                                    <TextBlock Text="多选 JPEG/PNG，按选择顺序合成一个 PDF；输出保存到 下载\AI-Tool-Box\Transform\。首次使用需联网加载 PDF 组件。"
+                                               TextWrapping="Wrap" Opacity="0.8" FontSize="12"/>
+                                    <Button Content="选择图片并合成 PDF"
+                                            Command="{x:Bind ViewModel.ImagesToPdfCommand}"
+                                            Style="{StaticResource AccentButtonStyle}"/>
+                                    <TextBlock Text="{x:Bind ViewModel.PdfStatus, Mode=OneWay}" TextWrapping="Wrap" Opacity="0.85"/>
+                                </StackPanel>
+                            </Border>
+
+                            <!-- 明细：PDF 合并 -->
+                            <Border x:Name="OfficeMergePdfPanel" Visibility="Collapsed"
+                                    Background="{ThemeResource LayerFillColorDefaultBrush}"
+                                    BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                                    BorderThickness="1" CornerRadius="6" Padding="12">
+                                <StackPanel Spacing="8">
+                                    <TextBlock Text="多选 PDF（至少 2 个），按选择顺序合并为一个 PDF。"
+                                               TextWrapping="Wrap" Opacity="0.8" FontSize="12"/>
+                                    <Button Content="选择 PDF 并合并"
+                                            Command="{x:Bind ViewModel.MergePdfsCommand}"
+                                            Style="{StaticResource AccentButtonStyle}"/>
+                                    <TextBlock Text="{x:Bind ViewModel.PdfStatus, Mode=OneWay}" TextWrapping="Wrap" Opacity="0.85"/>
+                                </StackPanel>
+                            </Border>
+
+                            <!-- 明细：PDF → PNG -->
+                            <Border x:Name="OfficePdfToPngPanel" Visibility="Collapsed"
+                                    Background="{ThemeResource LayerFillColorDefaultBrush}"
+                                    BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                                    BorderThickness="1" CornerRadius="6" Padding="12">
+                                <StackPanel Spacing="8">
+                                    <TextBlock Text="选择单个 PDF，逐页渲染导出 PNG（2 倍缩放）；输出保存到 下载\AI-Tool-Box\Transform\。"
+                                               TextWrapping="Wrap" Opacity="0.8" FontSize="12"/>
+                                    <Button Content="选择 PDF 并导出 PNG"
+                                            Command="{x:Bind ViewModel.PdfToPngsCommand}"
+                                            Style="{StaticResource AccentButtonStyle}"/>
+                                    <TextBlock Text="{x:Bind ViewModel.PdfStatus, Mode=OneWay}" TextWrapping="Wrap" Opacity="0.85"/>
+                                </StackPanel>
+                            </Border>
+                        </StackPanel>
+                    </ScrollViewer>
+                </Grid>
+            </Border>
+
+            <!-- ==================== 右列：音视频处理 ==================== -->
+            <Border Grid.Column="1"
+                    Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                    BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                    BorderThickness="1" CornerRadius="8" Padding="12">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+                    <StackPanel Grid.Row="0" Orientation="Horizontal" Spacing="8" Margin="0,0,0,8">
+                        <TextBlock Text="音视频处理" FontSize="18" FontWeight="SemiBold" VerticalAlignment="Center"/>
+                        <TextBlock Text="视频 / 音频 / 音乐格式" Opacity="0.7" FontSize="12" VerticalAlignment="Center"/>
+                    </StackPanel>
+
+                    <ScrollViewer Grid.Row="1" MaxHeight="600"
+                                  VerticalScrollMode="Auto" VerticalScrollBarVisibility="Auto"
+                                  HorizontalScrollMode="Disabled">
+                        <StackPanel Spacing="10">
+                            <controls:RadioButtons x:Name="MediaSelector" SelectionChanged="OnMediaSelectionChanged">
+                                <x:String>视频 → MP4</x:String>
+                                <x:String>音视频格式互转</x:String>
+                                <x:String>NCM 转换</x:String>
+                            </controls:RadioButtons>
+
+                            <!-- 明细：视频 → MP4 -->
+                            <Border x:Name="MediaVideoToMp4Panel" Visibility="Collapsed"
+                                    Background="{ThemeResource LayerFillColorDefaultBrush}"
+                                    BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                                    BorderThickness="1" CornerRadius="6" Padding="12">
+                                <StackPanel Spacing="8">
+                                    <TextBlock Text="选择任意视频源文件，调用 FFmpeg 转为 MP4（H.264 + AAC，faststart）。"
+                                               TextWrapping="Wrap" Opacity="0.8" FontSize="12"/>
+                                    <Grid ColumnSpacing="8">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <TextBox Grid.Column="0" Text="{x:Bind ViewModel.InputPath, Mode=TwoWay}"
+                                                 PlaceholderText="源视频文件路径…" Header="输入文件"/>
+                                        <Button Grid.Column="1" Content="选取…" Command="{x:Bind ViewModel.PickInputFileCommand}" VerticalAlignment="Bottom"/>
+                                    </Grid>
+                                    <Grid ColumnSpacing="8">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <TextBox Grid.Column="0" Text="{x:Bind ViewModel.OutputPath, Mode=TwoWay}"
+                                                 PlaceholderText="输出 .mp4 路径…" Header="输出文件"/>
+                                        <Button Grid.Column="1" Content="另存为…" Command="{x:Bind ViewModel.PickOutputFileCommand}" VerticalAlignment="Bottom"/>
+                                    </Grid>
+                                    <Grid ColumnSpacing="12">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto"/>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <Button Grid.Column="0"
+                                                Content="{x:Bind ViewModel.IsBusy, Mode=OneWay, Converter={StaticResource RunningText}}"
+                                                Click="OnRunVideoToMp4"
+                                                IsEnabled="{x:Bind ViewModel.IsBusy, Mode=OneWay, Converter={StaticResource InvBool}}"
+                                                Style="{StaticResource AccentButtonStyle}" MinWidth="120"/>
+                                        <ProgressBar Grid.Column="1" Value="{x:Bind ViewModel.Progress, Mode=OneWay}" Minimum="0" Maximum="1" Height="8" VerticalAlignment="Center"/>
+                                        <TextBlock Grid.Column="2" Text="{x:Bind ViewModel.Progress, Mode=OneWay, Converter={StaticResource ProgressPct}}" VerticalAlignment="Center" MinWidth="60" TextAlignment="Right"/>
+                                    </Grid>
+                                    <TextBlock Text="{x:Bind ViewModel.Status, Mode=OneWay}" TextWrapping="Wrap" Opacity="0.85"/>
+                                </StackPanel>
+                            </Border>
+
+                            <!-- 明细：音视频格式互转 -->
+                            <Border x:Name="MediaConvertPanel" Visibility="Collapsed"
+                                    Background="{ThemeResource LayerFillColorDefaultBrush}"
+                                    BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                                    BorderThickness="1" CornerRadius="6" Padding="12">
+                                <StackPanel Spacing="8">
+                                    <TextBlock Text="输入源文件 + 指定带目标扩展名的输出路径（.mp3 / .flac / .wav / .mkv…），自动匹配 ffmpeg 参数。输入与输出扩展名需不同。"
+                                               TextWrapping="Wrap" Opacity="0.8" FontSize="12"/>
+                                    <Grid ColumnSpacing="8">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <TextBox Grid.Column="0" Text="{x:Bind ViewModel.InputPath, Mode=TwoWay}"
+                                                 PlaceholderText="源音视频文件路径…" Header="输入文件"/>
+                                        <Button Grid.Column="1" Content="选取…" Command="{x:Bind ViewModel.PickInputFileCommand}" VerticalAlignment="Bottom"/>
+                                    </Grid>
+                                    <Grid ColumnSpacing="8">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <TextBox Grid.Column="0" Text="{x:Bind ViewModel.OutputPath, Mode=TwoWay}"
+                                                 PlaceholderText="输出文件路径（扩展名决定目标格式）…" Header="输出文件"/>
+                                        <Button Grid.Column="1" Content="另存为…" Command="{x:Bind ViewModel.PickOutputFileCommand}" VerticalAlignment="Bottom"/>
+                                    </Grid>
+                                    <Grid ColumnSpacing="12">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto"/>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <Button Grid.Column="0"
+                                                Content="{x:Bind ViewModel.IsBusy, Mode=OneWay, Converter={StaticResource RunningText}}"
+                                                Click="OnRunMediaConvert"
+                                                IsEnabled="{x:Bind ViewModel.IsBusy, Mode=OneWay, Converter={StaticResource InvBool}}"
+                                                Style="{StaticResource AccentButtonStyle}" MinWidth="120"/>
+                                        <ProgressBar Grid.Column="1" Value="{x:Bind ViewModel.Progress, Mode=OneWay}" Minimum="0" Maximum="1" Height="8" VerticalAlignment="Center"/>
+                                        <TextBlock Grid.Column="2" Text="{x:Bind ViewModel.Progress, Mode=OneWay, Converter={StaticResource ProgressPct}}" VerticalAlignment="Center" MinWidth="60" TextAlignment="Right"/>
+                                    </Grid>
+                                    <TextBlock Text="{x:Bind ViewModel.Status, Mode=OneWay}" TextWrapping="Wrap" Opacity="0.85"/>
+                                </StackPanel>
+                            </Border>
+
+                            <!-- 明细：NCM 转换 -->
+                            <Border x:Name="NcmPanel" Visibility="Collapsed"
+                                    Background="{ThemeResource LayerFillColorDefaultBrush}"
+                                    BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                                    BorderThickness="1" CornerRadius="6" Padding="12">
+                                <StackPanel Spacing="8">
+                                    <TextBlock Text="选择 .ncm 文件（可多选）后开始转换；输出 .mp3/.flac 保存在源文件所在目录。"
+                                               TextWrapping="Wrap" Opacity="0.8" FontSize="12"/>
+                                    <StackPanel Orientation="Horizontal" Spacing="8">
+                                        <Button Content="选择 NCM…" Command="{x:Bind ViewModel.PickNcmFilesCommand}"/>
+                                        <Button Content="开始转换" Style="{StaticResource AccentButtonStyle}"
+                                                Command="{x:Bind ViewModel.ConvertNcmCommand}"/>
+                                        <TextBlock Text="{x:Bind ViewModel.NcmProgressText, Mode=OneWay}" VerticalAlignment="Center" Opacity="0.9"/>
+                                    </StackPanel>
+                                    <TextBlock Text="{x:Bind ViewModel.NcmSummary, Mode=OneWay}" TextTrimming="CharacterEllipsis" Opacity="0.85"/>
+                                    <TextBlock Text="{x:Bind ViewModel.NcmStatus, Mode=OneWay}" TextWrapping="Wrap" Opacity="0.85"/>
+                                </StackPanel>
+                            </Border>
+                        </StackPanel>
+                    </ScrollViewer>
+                </Grid>
+            </Border>
+        </Grid>
+
+        <!-- 预览 / 最近输出 Tab -->
+        <controls:TabView Grid.Row="3"
+                          IsAddTabButtonVisible="False"
+                          CanReorderTabs="False"
+                          CanDragTabs="False"
+                          MinHeight="220" MaxHeight="320"
+                          Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                          CornerRadius="8" Margin="0,8">
+            <controls:TabViewItem Header="预览（文本）" IsClosable="False">
+                <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto">
+                    <TextBox Text="{x:Bind ViewModel.PreviewText, Mode=OneWay}"
+                             IsReadOnly="True"
+                             AcceptsReturn="True"
+                             TextWrapping="Wrap"
+                             BorderThickness="0"
+                             Background="Transparent"
+                             HorizontalAlignment="Stretch"
+                             VerticalAlignment="Stretch"/>
+                </ScrollViewer>
+            </controls:TabViewItem>
+            <controls:TabViewItem Header="最近输出" IsClosable="False">
+                <ListView ItemsSource="{x:Bind ViewModel.RecentOutputs, Mode=OneWay}">
+                    <ListView.ItemTemplate>
+                        <DataTemplate>
+                            <TextBlock Text="{Binding}" TextTrimming="CharacterEllipsis" Padding="6,4"/>
+                        </DataTemplate>
+                    </ListView.ItemTemplate>
+                </ListView>
+            </controls:TabViewItem>
+        </controls:TabView>
+
+        <!-- 隐藏 WebView2 工具页（PDF 工具：Assets/Web/pdf.html；1px 不可见占位保证初始化）。
+             PrintWeb 专门用于 DOCX→PDF 的 WebView2 打印渲染，与 PDF 工具页互不干扰。 -->
+        <Grid Grid.Row="4">
+            <StackPanel Orientation="Vertical">
+                <controls:WebView2 x:Name="PdfWeb"
+                                   Width="1" Height="1"
+                                   Opacity="0"
+                                   IsHitTestVisible="False"
+                                   IsTabStop="False"/>
+                <controls:WebView2 x:Name="PrintWeb"
+                                   Width="1" Height="1"
+                                   Opacity="0"
+                                   IsHitTestVisible="False"
+                                   IsTabStop="False"/>
+            </StackPanel>
+        </Grid>
+    </Grid>
+    </ScrollViewer>
+</Page>

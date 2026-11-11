@@ -1,0 +1,402 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PDF 查看器</title>
+<!--
+  PDF 查看器（pdf.js 渲染 + pdf-lib 批注/裁剪/合并，本地 lib\ 加载，完全离线）
+  ============ 宿主 ↔ JS 消息协议（window.chrome.webview）============
+  JS → 宿主（postMessage）：
+    { type:"ready" }                    库就绪
+    { type:"docLoaded", name, pages }   文档加载完成
+    { type:"pageChanged", page, total } 页码变化
+    { type:"exportResult", name, dataBase64 } 导出/裁剪/合并结果（文件字节）
+    { type:"error", message }
+  宿主 → JS（PostWebMessageAsJson）：
+    { cmd:"open", name, dataBase64 }                   打开 PDF
+    { cmd:"page", delta }                              翻页 ±1
+    { cmd:"zoom", factor }                             缩放倍率（如 1.2 / 0.85）
+    { cmd:"fitWidth" }                                 适应宽度
+    { cmd:"tool", name:"pan"|"text"|"pen"|"crop" }     切换工具
+    { cmd:"clearAnnots", page:"all"|"current" }        清除批注
+    { cmd:"exportPdf" }                                导出（含批注）
+    { cmd:"applyCrop" }                                应用裁剪并导出
+    { cmd:"merge", files:[{name,dataBase64}] }         合并多个 PDF 并打开结果
+-->
+<script src="../lib/pdf.worker.min.js"></script>
+<script src="../lib/pdf-lib.min.js"></script>
+<script src="../lib/pdf.min.js"></script>
+<style>
+  html, body { margin:0; padding:0; height:100%; background:#1E2328; overflow:hidden;
+               font-family:"Segoe UI","Microsoft YaHei",sans-serif; }
+  #doc { width:100%; height:100%; overflow:auto; }
+  #canvasWrap { position:relative; margin:16px auto; width:fit-content; box-shadow:0 4px 20px rgba(0,0,0,.5); }
+  #pageCanvas { display:block; background:#fff; }
+  #overlay { position:absolute; left:0; top:0; pointer-events:auto; display:block; }
+  #empty { position:fixed; inset:0; display:flex; align-items:center; justify-content:center;
+           color:#6A7B8C; font-size:16px; user-select:none; }
+  #empty .big { font-size:44px; margin-bottom:14px; text-align:center; opacity:.55; }
+  #cropBox { position:absolute; border:2px solid #00E5FF; background:rgba(0,229,255,.15);
+             display:none; pointer-events:none; }
+  #cropTip { position:fixed; right:18px; bottom:14px; color:#9FB6C6; font-size:12px; background:rgba(0,0,0,.55);
+             padding:6px 10px; border-radius:6px; display:none; }
+</style>
+</head>
+<body>
+<div id="doc">
+  <div id="canvasWrap">
+    <canvas id="pageCanvas"></canvas>
+    <canvas id="overlay"></canvas>
+    <div id="cropBox"></div>
+  </div>
+</div>
+<div id="empty"><div><div class="big">📄</div><div>点击上方"打开 PDF"选择文件</div></div></div>
+<div id="cropTip">拖拽选择裁剪区域，然后点击工具栏"应用裁剪"</div>
+<script>
+(function () {
+  "use strict";
+  var post = function (msg) { window.chrome.webview.postMessage(msg); };
+
+  var docEl = document.getElementById("doc");
+  var pageCanvas = document.getElementById("pageCanvas");
+  var overlay = document.getElementById("overlay");
+  var cropBox = document.getElementById("cropBox");
+  var cropTip = document.getElementById("cropTip");
+  var empty = document.getElementById("empty");
+  var pctx = pageCanvas.getContext("2d");
+  var octx = overlay.getContext("2d");
+
+  // ===== 状态 =====
+  var state = {
+    doc: null,          // pdfjs 文档
+    page: null,         // 当前页对象
+    pageNum: 1,
+    total: 0,
+    scale: 1.3,
+    pdfBytes: null,     // 原始 PDF 字节（Uint8Array）
+    fileName: "document.pdf",
+    tool: "pan",        // pan | text | pen | crop
+    annots: [],         // {page, kind:"text", x,y,text} | {page, kind:"pen", points:[{x,y},...]}  (PDF 坐标)
+    currentPen: null,   // 正在绘制
+    currentCrop: null   // {x1,y1,x2,y2} 画布坐标
+  };
+
+  // ===== PDF.js 初始化 =====
+  var base = location.href.substring(0, location.href.lastIndexOf("/"));
+  if (window.pdfjsLib) {
+    window.pdfjsLib.GlobalWorkerOptions.workerSrc = base + "/../lib/pdf.worker.min.js";
+  }
+  var libOk = !!(window.pdfjsLib && window.PDFLib);
+
+  window.addEventListener("load", function () {
+    setTimeout(function () {
+      libOk = !!(window.pdfjsLib && window.PDFLib);
+      console.log("[pdfviewer] ready, libOk=" + libOk,
+        "pdfjs=" + (window.pdfjsLib ? "ok" : "missing"),
+        "pdflib=" + (window.PDFLib ? "ok" : "missing"));
+      // 无论库是否加载成功都回执 ready（libOk 标志），宿主据此提示而非一直"正在打开"
+      post({ type: "ready", libOk: libOk, message: libOk ? "" : "PDF 库加载失败" });
+    }, 60);
+  });
+
+  // ===== 工具函数 =====
+  function b64ToBytes(b64) {
+    var bin = atob(b64);
+    var bytes = new Uint8Array(bin.length);
+    for (var i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+    return bytes;
+  }
+  function bytesToB64(bytes) {
+    var CHUNK = 0x8000, parts = [];
+    for (var i = 0; i < bytes.length; i += CHUNK)
+      parts.push(String.fromCharCode.apply(null, bytes.subarray(i, Math.min(i + CHUNK, bytes.length))));
+    return btoa(parts.join(""));
+  }
+  function stamp() {
+    var d = new Date(), p = function (n) { return (n < 10 ? "0" : "") + n; };
+    return "" + d.getFullYear() + p(d.getMonth() + 1) + p(d.getDate()) + "-" +
+      p(d.getHours()) + p(d.getMinutes()) + p(d.getSeconds());
+  }
+
+  // ===== 渲染 =====
+  function canvasPos(e) {
+    var r = overlay.getBoundingClientRect();
+    return { x: e.clientX - r.left, y: e.clientY - r.top };
+  }
+  // 画布坐标 → PDF 坐标（左下原点）
+  function toPdf(cx, cy) {
+    var vp = state.page.getViewport({ scale: state.scale });
+    return { x: cx / state.scale, y: (vp.height - cy) / state.scale };
+  }
+
+  async function renderPage() {
+    if (!state.doc) return;
+    try {
+      state.page = await state.doc.getPage(state.pageNum);
+      var vp = state.page.getViewport({ scale: state.scale });
+      pageCanvas.width = Math.max(1, Math.ceil(vp.width));
+      pageCanvas.height = Math.max(1, Math.ceil(vp.height));
+      overlay.width = pageCanvas.width;
+      overlay.height = pageCanvas.height;
+      pctx.fillStyle = "#ffffff";
+      pctx.fillRect(0, 0, pageCanvas.width, pageCanvas.height);
+      console.log("[pdfviewer] render page", state.pageNum, pageCanvas.width + "x" + pageCanvas.height);
+      await state.page.render({ canvasContext: pctx, viewport: vp }).promise;
+      drawAnnots();
+      post({ type: "pageChanged", page: state.pageNum, total: state.total });
+    } catch (err) {
+      console.error("[pdfviewer] render failed:", err);
+      post({ type: "error", message: "渲染失败：" + (err && err.message || err) });
+    }
+  }
+
+  // 重绘当前页批注（叠加层）
+  function drawAnnots() {
+    octx.clearRect(0, 0, overlay.width, overlay.height);
+    var vp = state.page.getViewport({ scale: state.scale });
+    var list = state.annots.filter(function (a) { return a.page === state.pageNum; });
+    for (var i = 0; i < list.length; i++) {
+      var a = list[i];
+      if (a.kind === "text") {
+        octx.font = "14px 'Microsoft YaHei', sans-serif";
+        octx.fillStyle = "rgba(230,30,30,.92)";
+        octx.fillText(a.text, a.x * state.scale, vp.height - a.y * state.scale);
+      } else if (a.kind === "pen") {
+        octx.strokeStyle = "rgba(230,30,30,.92)";
+        octx.lineWidth = 2;
+        octx.beginPath();
+        for (var k = 0; k < a.points.length; k++) {
+          var px = a.points[k].x * state.scale;
+          var py = vp.height - a.points[k].y * state.scale;
+          if (k === 0) octx.moveTo(px, py); else octx.lineTo(px, py);
+        }
+        octx.stroke();
+      }
+    }
+    // 正在绘制的笔画
+    if (state.currentPen && state.currentPen.page === state.pageNum && state.currentPen.points.length > 1) {
+      octx.strokeStyle = "rgba(230,30,30,.92)";
+      octx.lineWidth = 2;
+      octx.beginPath();
+      for (var m = 0; m < state.currentPen.points.length; m++) {
+        var mx = state.currentPen.points[m].x * state.scale;
+        var my = vp.height - state.currentPen.points[m].y * state.scale;
+        if (m === 0) octx.moveTo(mx, my); else octx.lineTo(mx, my);
+      }
+      octx.stroke();
+    }
+    // 裁剪框
+    if (state.currentCrop && state.tool === "crop") {
+      cropBox.style.display = "block";
+      cropBox.style.left = Math.min(state.currentCrop.x1, state.currentCrop.x2) + "px";
+      cropBox.style.top = Math.min(state.currentCrop.y1, state.currentCrop.y2) + "px";
+      cropBox.style.width = Math.abs(state.currentCrop.x2 - state.currentCrop.x1) + "px";
+      cropBox.style.height = Math.abs(state.currentCrop.y2 - state.currentCrop.y1) + "px";
+      cropTip.style.display = "block";
+    } else {
+      cropBox.style.display = "none";
+      cropTip.style.display = "none";
+    }
+  }
+
+  // ===== 打开 =====
+  async function openPdf(msg) {
+    try {
+      state.pdfBytes = b64ToBytes(msg.dataBase64);
+      state.fileName = msg.name || "document.pdf";
+      console.log("[pdfviewer] open begin:", state.fileName, "bytes=" + state.pdfBytes.length);
+      if (state.doc) { try { await state.doc.destroy(); } catch (_) {} }
+      // 加密 PDF：提供 onPassword 回调（否则 getDocument 会永久挂起 → 表现为"正在打开"卡住）
+      var pwTries = 0;
+      var task = window.pdfjsLib.getDocument({
+        data: state.pdfBytes,
+        onPassword: function (updatePassword) {
+          if (pwTries >= 1) { updatePassword(null); return; }
+          pwTries++;
+          var p = prompt("该 PDF 受密码保护，请输入密码：", "");
+          updatePassword(p || null);
+        }
+      });
+      // 超时兜底：20 秒未解析完成 → 报错而非无限等待
+      var timeoutP = new Promise(function (_, reject) {
+        setTimeout(function () { reject(new Error("PDF 解析超时（文件可能损坏）")); }, 20000);
+      });
+      state.doc = await Promise.race([task.promise, timeoutP]);
+      console.log("[pdfviewer] doc loaded, pages=" + state.doc.numPages);
+      state.total = state.doc.numPages;
+      state.pageNum = 1;
+      state.annots = [];
+      state.currentPen = null;
+      state.currentCrop = null;
+      empty.style.display = "none";
+      await renderPage();
+      post({ type: "docLoaded", name: state.fileName, pages: state.total });
+      console.log("[pdfviewer] open done");
+    } catch (err) {
+      console.error("[pdfviewer] open failed:", err);
+      post({ type: "error", message: "打开失败：" + (err && err.message || err) });
+    }
+  }
+
+  // ===== 合并 =====
+  async function mergeDocs(msg) {
+    if (!msg.files || !msg.files.length) throw new Error("未提供 PDF 文件。");
+    var out = await PDFLib.PDFDocument.create();
+    for (var i = 0; i < msg.files.length; i++) {
+      var src = await PDFLib.PDFDocument.load(b64ToBytes(msg.files[i].dataBase64), { ignoreEncryption: true });
+      var pages = await out.copyPages(src, src.getPageIndices());
+      for (var p = 0; p < pages.length; p++) out.addPage(pages[p]);
+    }
+    var data = await out.save();
+    var name = "merged-" + stamp() + ".pdf";
+    await openPdf({ name: name, dataBase64: bytesToB64(data) });
+    post({ type: "exportResult", name: name, dataBase64: bytesToB64(data) });
+  }
+
+  // ===== 导出（含批注 + 裁剪） =====
+  async function exportPdf() {
+    if (!state.pdfBytes) throw new Error("尚未打开文档。");
+    var doc = await PDFLib.PDFDocument.load(state.pdfBytes, { ignoreEncryption: true });
+
+    // 裁剪
+    if (state.currentCrop && state.tool === "crop" &&
+        Math.abs(state.currentCrop.x2 - state.currentCrop.x1) > 4 &&
+        Math.abs(state.currentCrop.y2 - state.currentCrop.y1) > 4) {
+      var vp = state.page.getViewport({ scale: state.scale });
+      var x1 = state.currentCrop.x1 / state.scale;
+      var y1 = (vp.height - state.currentCrop.y1) / state.scale;
+      var x2 = state.currentCrop.x2 / state.scale;
+      var y2 = (vp.height - state.currentCrop.y2) / state.scale;
+      var target = doc.getPage(state.pageNum - 1);
+      target.setCropBox([Math.min(x1, x2), Math.min(y1, y2), Math.max(x1, x2), Math.max(y1, y2)]);
+    }
+
+    // 批注（文字/画笔）
+    var red = PDFLib.rgb(0.9, 0.12, 0.12);
+    var stdFont = await doc.getFont();
+    for (var i = 0; i < state.annots.length; i++) {
+      var a = state.annots[i];
+      var page = doc.getPage(a.page - 1);
+      if (a.kind === "text") {
+        page.drawText(a.text || "", { x: a.x, y: a.y, size: 12, color: red, font: stdFont });
+      } else if (a.kind === "pen" && a.points.length > 1) {
+        for (var k = 0; k < a.points.length - 1; k++) {
+          page.drawLine({
+            start: { x: a.points[k].x, y: a.points[k].y },
+            end: { x: a.points[k + 1].x, y: a.points[k + 1].y },
+            thickness: 1.4, color: red
+          });
+        }
+      }
+    }
+
+    var data = await doc.save();
+    var name = "annotated-" + stamp() + ".pdf";
+    post({ type: "exportResult", name: name, dataBase64: bytesToB64(data) });
+  }
+
+  // ===== 鼠标交互 =====
+  function pointerDown(e) {
+    if (!state.page || !state.doc) return;
+    var p = canvasPos(e);
+    if (state.tool === "pen") {
+      state.currentPen = { page: state.pageNum, points: [toPdf(p.x, p.y)] };
+      overlay.setPointerCapture(e.pointerId);
+      drawAnnots();
+    } else if (state.tool === "text") {
+      var text = prompt("输入批注文字：", "");
+      if (text && text.trim()) {
+        state.annots.push({ page: state.pageNum, kind: "text", text: text.trim(),
+          x: toPdf(p.x, p.y).x, y: toPdf(p.x, p.y).y });
+        drawAnnots();
+      }
+    } else if (state.tool === "crop") {
+      state.currentCrop = { x1: p.x, y1: p.y, x2: p.x, y2: p.y };
+      overlay.setPointerCapture(e.pointerId);
+      drawAnnots();
+    }
+  }
+  function pointerMove(e) {
+    if (!state.page) return;
+    var p = canvasPos(e);
+    if (state.tool === "pen" && state.currentPen) {
+      state.currentPen.points.push(toPdf(p.x, p.y));
+      drawAnnots();
+    } else if (state.tool === "crop" && state.currentCrop) {
+      state.currentCrop.x2 = p.x;
+      state.currentCrop.y2 = p.y;
+      drawAnnots();
+    }
+  }
+  function pointerUp() {
+    if (state.tool === "pen" && state.currentPen) {
+      if (state.currentPen.points.length >= 2) state.annots.push(state.currentPen);
+      state.currentPen = null;
+      drawAnnots();
+    } else if (state.tool === "crop" && state.currentCrop) {
+      if (Math.abs(state.currentCrop.x2 - state.currentCrop.x1) < 4 &&
+          Math.abs(state.currentCrop.y2 - state.currentCrop.y1) < 4) {
+        state.currentCrop = null;
+      }
+      drawAnnots();
+    }
+  }
+  overlay.addEventListener("pointerdown", pointerDown);
+  overlay.addEventListener("pointermove", pointerMove);
+  overlay.addEventListener("pointerup", pointerUp);
+  overlay.addEventListener("pointercancel", pointerUp);
+
+  // 滚轮缩放（Ctrl + 滚轮）
+  docEl.addEventListener("wheel", function (e) {
+    if (!e.ctrlKey) return;
+    e.preventDefault();
+    var f = e.deltaY < 0 ? 1.15 : 0.87;
+    state.scale = Math.min(5, Math.max(0.3, state.scale * f));
+    renderPage();
+  }, { passive: false });
+
+  // ===== 指令分发 =====
+  async function handle(msg) {
+    if (!msg || typeof msg.cmd !== "string") return;
+    if (!libOk) throw new Error("PDF 库尚未加载成功");
+    switch (msg.cmd) {
+      case "open": return openPdf(msg);
+      case "page":
+        if (!state.doc) return;
+        state.pageNum = Math.min(state.total, Math.max(1, state.pageNum + (Number(msg.delta) || 0)));
+        return renderPage();
+      case "zoom":
+        if (!state.doc) return;
+        state.scale = Math.min(5, Math.max(0.3, state.scale * (Number(msg.factor) || 1)));
+        return renderPage();
+      case "fitWidth":
+        if (!state.doc) return;
+        state.scale = Math.max(0.3, (docEl.clientWidth - 80) / (state.page.getViewport({ scale: 1 }).width));
+        return renderPage();
+      case "tool":
+        state.tool = msg.name === "text" || msg.name === "pen" || msg.name === "crop" ? msg.name : "pan";
+        state.currentCrop = null;
+        drawAnnots();
+        return;
+      case "clearAnnots":
+        if (msg.page === "all") state.annots = [];
+        else state.annots = state.annots.filter(function (a) { return a.page !== state.pageNum; });
+        state.currentPen = null;
+        return drawAnnots();
+      case "exportPdf": return exportPdf();
+      case "applyCrop": return exportPdf();
+      case "merge": return mergeDocs(msg);
+      default: throw new Error("未知指令：" + msg.cmd);
+    }
+  }
+
+  window.chrome.webview.addEventListener("message", function (e) {
+    handle(e.data).catch(function (err) {
+      post({ type: "error", message: String((err && err.message) || err) });
+    });
+  });
+})();
+</script>
+</body>
+</html>

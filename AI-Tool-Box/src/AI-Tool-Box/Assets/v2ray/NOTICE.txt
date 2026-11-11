@@ -1,0 +1,9 @@
+v2ray core bundled for the VPN feature (VMess over WebSocket + TLS).
+
+Source: v2ray-core (V2Fly community edition, MIT License) — https://github.com/v2fly/v2ray-core
+Build: V2Ray 4.42.2 (custom build shipped with GreenHub 2.4.0, used here for protocol compatibility testing).
+
+You may replace this file with any v2ray/xray build, or point the app to an existing v2ray.exe
+(VPN page → 指定 v2ray.exe…). If you redistribute this binary, keep this notice and the MIT license terms.
+
+                                                                                                                    

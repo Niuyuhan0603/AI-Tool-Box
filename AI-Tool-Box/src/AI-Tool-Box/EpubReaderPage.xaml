@@ -1,0 +1,110 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Page
+    x:Class="AI_Tool_Box.Views.EpubReaderPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <!--
+        EPUB 阅读器（epub.js 0.3.93 + JSZip，WebView2 内嵌 Assets/Web/epub.html）：
+        Row0 工具行：打开 EPUB / 上一页 / 页码 / 下一页 / 目录 / 字号 A- A+ / 夜间模式；
+        Row1 内容区：左 WebView2 阅读区 + 右目录面板（可折叠）；
+        Row2 状态栏。
+        整页 AllowDrop 支持 .epub 拖入；宿主↔JS 消息协议见 epub.html 头部注释。
+    -->
+    <Grid Padding="16" RowSpacing="12"
+          Background="{ThemeResource ApplicationPageBackgroundThemeBrush}"
+          AllowDrop="True"
+          DragOver="OnRootDragOver"
+          Drop="OnRootDrop">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <!-- ===== Row 0: 工具行 ===== -->
+        <StackPanel Grid.Row="0" Orientation="Horizontal" Spacing="8">
+            <Button Content="打开 EPUB…"
+                    Style="{StaticResource AccentButtonStyle}"
+                    Click="OnOpenClick"/>
+            <Button Content="◀ 上一页"
+                    ToolTipService.ToolTip="上一页（←）"
+                    Click="OnPrevClick"/>
+            <TextBlock x:Name="PageIndicator"
+                       Text="– / –"
+                       VerticalAlignment="Center"
+                       MinWidth="80"
+                       TextAlignment="Center"
+                       Foreground="{ThemeResource SystemControlPageTextBaseMediumBrush}"/>
+            <Button Content="下一页 ▶"
+                    ToolTipService.ToolTip="下一页（→）"
+                    Click="OnNextClick"/>
+            <Button x:Name="TocButton"
+                    Content="目录"
+                    ToolTipService.ToolTip="显示 / 隐藏右侧目录面板"
+                    Click="OnTocClick"/>
+            <Button Content="A-"
+                    ToolTipService.ToolTip="减小字号"
+                    Padding="12,4"
+                    Click="OnFontMinusClick"/>
+            <Button Content="A+"
+                    ToolTipService.ToolTip="增大字号"
+                    Padding="12,4"
+                    Click="OnFontPlusClick"/>
+            <Button x:Name="ThemeButton"
+                    Content="夜间模式"
+                    ToolTipService.ToolTip="切换阅读区夜间 / 日间主题"
+                    Click="OnThemeClick"/>
+        </StackPanel>
+
+        <!-- ===== Row 1: 阅读区 + 目录面板 ===== -->
+        <Grid Grid.Row="1" ColumnSpacing="12">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+
+            <!-- WebView2 承载 epub.js 渲染（Source 在 code-behind 指向输出目录 Assets/Web/epub.html） -->
+            <Border Grid.Column="0"
+                    Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                    BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                    BorderThickness="1"
+                    CornerRadius="8"
+                    Padding="4">
+                <WebView2 x:Name="Web"/>
+            </Border>
+
+            <!-- 右侧目录面板（默认折叠） -->
+            <Border x:Name="TocPanel"
+                    Grid.Column="1"
+                    Width="280"
+                    Visibility="Collapsed"
+                    Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                    BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                    BorderThickness="1"
+                    CornerRadius="8"
+                    Padding="10">
+                <Grid RowSpacing="6">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
+                    <TextBlock Grid.Row="0" Text="目录" Style="{StaticResource SubtitleTextBlockStyle}"/>
+                    <ListView Grid.Row="1"
+                              x:Name="TocList"
+                              IsItemClickEnabled="True"
+                              ItemClick="OnTocItemClick"
+                              SelectionMode="None"
+                              DisplayMemberPath="Label"/>
+                </Grid>
+            </Border>
+        </Grid>
+
+        <!-- ===== Row 2: 状态栏 ===== -->
+        <TextBlock Grid.Row="2"
+                   x:Name="StatusText"
+                   Text="提示：点击「打开 EPUB…」选择本地书籍，或直接把 .epub 文件拖入本页。epub.js / JSZip 已内置本地加载，完全离线可用。"
+                   Foreground="{ThemeResource SystemControlPageTextBaseMediumBrush}"
+                   TextTrimming="CharacterEllipsis"/>
+    </Grid>
+</Page>

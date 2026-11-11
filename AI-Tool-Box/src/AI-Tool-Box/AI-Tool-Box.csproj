@@ -1,0 +1,74 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows10.0.19041.0</TargetFramework>
+    <TargetPlatformMinVersion>10.0.17763.0</TargetPlatformMinVersion>
+    <RootNamespace>AI_Tool_Box</RootNamespace>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <Platforms>x64</Platforms>
+    <RuntimeIdentifiers>win-x64</RuntimeIdentifiers>
+    <UseWinUI>true</UseWinUI>
+    <EnableMsixTooling>false</EnableMsixTooling>
+    <WindowsPackageType>None</WindowsPackageType>
+    <WindowsAppSDKSelfContained>true</WindowsAppSDKSelfContained>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <LangVersion>latest</LangVersion>
+    <!-- 仅保留 中文简体/英文 的卫星语言资源包，剔除其它语言（缩小发布体积） -->
+    <SatelliteResourceLanguages>zh-Hans;en</SatelliteResourceLanguages>
+    <!-- EXE Win32 图标（任务栏/资源管理器/标题栏）；build.ps1 编译指令亦以 -p:ApplicationIcon 传入 -->
+    <ApplicationIcon>..\..\..\assets\H+_logo-transparent.ico</ApplicationIcon>
+    <!-- dotnet CLI 缺少 VS 的 AppxPackage PRI 任务（MSB4062），存在 VS 2022 时重定向任务目录 -->
+    <AppxMSBuildToolsPath Condition="'$(AppxMSBuildToolsPath)' == '' and Exists('C:\Program Files\Microsoft Visual Studio\2022\Community\MSBuild\Microsoft\VisualStudio\v17.0\AppxPackage\')">C:\Program Files\Microsoft Visual Studio\2022\Community\MSBuild\Microsoft\VisualStudio\v17.0\AppxPackage\</AppxMSBuildToolsPath>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.WindowsAppSDK" Version="1.6.250108002" />
+    <PackageReference Include="Microsoft.Windows.SDK.BuildTools" Version="10.0.26100.1742" />
+    <!-- WebView2 仅用于网页内容区域（spec.md 已批准，主 UI 壳为原生 WinUI 3） -->
+    <PackageReference Include="Microsoft.Web.WebView2" Version="1.0.2651.64" />
+    <PackageReference Include="CommunityToolkit.Mvvm" Version="8.3.2" />
+    <PackageReference Include="Microsoft.Extensions.Hosting" Version="8.0.1" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="8.0.1" />
+    <PackageReference Include="Serilog" Version="4.0.2" />
+    <PackageReference Include="Serilog.Extensions.Hosting" Version="8.0.0" />
+    <PackageReference Include="Serilog.Sinks.File" Version="6.0.0" />
+    <PackageReference Include="Serilog.Sinks.Console" Version="6.0.0" />
+    <!-- DPAPI 加密存储 API Key（遵循 Rules.md 安全准则） -->
+    <PackageReference Include="System.Security.Cryptography.ProtectedData" Version="8.0.0" />
+    <!-- DOCX 读写 (System.IO.Packaging OPC) -->
+    <PackageReference Include="System.IO.Packaging" Version="8.0.0" />
+    <!-- Autoscript：Lua 运行时（纯托管，支持沙箱限制） -->
+    <PackageReference Include="MoonSharp" Version="2.0.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- 链接到仓库根 assets 目录的 H+ Logo，构建时复制到输出目录 Assets 子目录 -->
+    <None Include="..\..\..\assets\H+_logo-transparent.ico">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <Link>Assets\H+_logo-transparent.ico</Link>
+    </None>
+    <!-- 启动画面图像（SplashOverlay 开机动画使用） -->
+    <None Include="..\..\..\assets\SplashScreen.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <Link>Assets\SplashScreen.png</Link>
+    </None>
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- 本地 OCR 引擎：LiteParse2.0（lit.exe + traineddata，从仓库根 LiteParse2.0 复制到输出 Assets\LiteParse）。
+         ffmpeg 不再内置，由用户在设置/转换页指定外部路径或 PATH 自动探测。 -->
+    <Content Include="..\..\..\LiteParse2.0\**\*">
+      <Link>Assets\LiteParse\%(RecursiveDir)%(Filename)%(Extension)</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <!-- WebView2 离线功能页（PDF 工具 / EPUB 阅读器） -->
+    <Content Include="Assets\Web\**\*" CopyToOutputDirectory="PreserveNewest"/>
+    <!-- VPN 节点配置（可替换此文件更新节点，VpnCatalog 运行时解析） -->
+    <Content Include="Assets\VPN-config.json" CopyToOutputDirectory="PreserveNewest"/>
+    <!-- VPN 的 VMess(WS+TLS) 转发核心（v2ray.exe，可替换为任意 v2ray/xray 构建） -->
+    <Content Include="Assets\v2ray\**\*" CopyToOutputDirectory="PreserveNewest"/>
+  </ItemGroup>
+
+</Project>

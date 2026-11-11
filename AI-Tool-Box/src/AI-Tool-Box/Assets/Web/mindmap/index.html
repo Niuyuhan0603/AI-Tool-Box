@@ -1,0 +1,634 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>思维导图（可编辑）</title>
+<style>
+  html, body { margin:0; padding:0; height:100%; background:#0A0F14; color:#DCEEF7;
+    font-family:"Segoe UI","Microsoft YaHei",system-ui,sans-serif; overflow:hidden; }
+  body { display:flex; flex-direction:column; }
+  #bar { flex:0 0 auto; display:flex; flex-wrap:wrap; align-items:center; gap:6px;
+    padding:6px 10px; background:#141B24; border-bottom:1px solid #1F2C38; font-size:12px; }
+  #bar button { background:#1B2733; color:#BFE9F5; border:1px solid #2A3A49; border-radius:6px;
+    padding:4px 10px; font-size:12px; cursor:pointer; }
+  #bar button:hover { background:#22323F; border-color:#00C8E0; }
+  #bar button:disabled { opacity:.45; cursor:default; }
+  #bar label { display:inline-flex; align-items:center; gap:4px; color:#9FB6C4; }
+  #bar input[type=color] { width:26px; height:22px; padding:0; border:1px solid #2A3A49;
+    background:#0A0F14; border-radius:4px; }
+  #bar input[type=number] { width:58px; background:#0A0F14; color:#DCEEF7; border:1px solid #2A3A49;
+    border-radius:4px; padding:3px; }
+  #bar .sep { width:1px; height:18px; background:#2A3A49; margin:0 4px; }
+  #bar .tip { color:#8AA0AE; opacity:.9; }
+  #stage { flex:1 1 auto; position:relative; min-height:0; overflow:hidden; }
+  svg { width:100%; height:100%; display:block; cursor:grab; }
+  svg.dragging { cursor:grabbing; }
+  .node { cursor:pointer; }
+  .empty { fill:#5B7284; font-size:14px; }
+  #renamer { position:absolute; display:none; background:#0A0F14; color:#FFFFFF;
+    border:1px solid #00C8E0; border-radius:6px; padding:2px 6px; z-index:20; outline:none;
+    font:13px "Segoe UI","Microsoft YaHei",system-ui,sans-serif; }
+</style>
+</head>
+<body>
+<div id="bar">
+  <button onclick="fit()">适应窗口</button>
+  <button onclick="zoom(1.2)">放大</button>
+  <button onclick="zoom(1/1.2)">缩小</button>
+  <span class="sep"></span>
+  <button id="btnAddChild" onclick="addChild()">添加子节点</button>
+  <button id="btnAddSib" onclick="addSibling()">添加同级</button>
+  <button id="btnRename" onclick="startRename()">重命名</button>
+  <button id="btnDelete" onclick="deleteNode()">删除</button>
+  <span class="sep"></span>
+  <label>文字色 <input type="color" id="txtColor" value="#E6F7FF" onchange="applyTextColor(this.value)"/></label>
+  <label>连线色 <input type="color" id="lineColor" value="#2A6F7F" onchange="applyLineColor(this.value)"/></label>
+  <label>字号 <input type="number" id="fontSize" min="8" max="48" step="1" value="13" onchange="applyFontSize(this.value)"/></label>
+  <button onclick="resetStyle()">清除样式</button>
+  <span class="sep"></span>
+  <span class="tip">点选节点 · 拖拽节点到另一节点可改父级 · 双击重命名 · Delete 删除 · 滚轮缩放/拖空白平移</span>
+  <span class="sep"></span>
+  <button onclick="doExport('svg')">导出 SVG</button>
+  <button onclick="doExport('png')">导出 PNG</button>
+  <button onclick="doExport('html')">导出 HTML</button>
+  <button onclick="doExport('md')">导出 MD</button>
+</div>
+<div id="stage">
+  <svg id="svg" xmlns="http://www.w3.org/2000/svg">
+    <g id="vp"></g>
+  </svg>
+  <input id="renamer" type="text" spellcheck="false"/>
+</div>
+<script>
+const PALETTE = ["#0F3B47","#12505F","#14657A","#187C95","#1C93B1","#21ABCC","#28C2E6"];
+const DEFAULT_TEXT = '#E6F7FF';
+const DEFAULT_EDGE = '#2A6F7F';
+const DEFAULT_FS = 13;
+const NS = 'http://www.w3.org/2000/svg';
+
+const svg = document.getElementById('svg');
+const vp = document.getElementById('vp');
+const renamer = document.getElementById('renamer');
+
+let tree = null;        // 树模型：{id,text,tc,fs,ec,parent,children:[],depth,x,y,w,h}
+let byId = new Map();   // id -> node
+let layout = null;      // {nodes,links,bbox}
+let selected = null;    // 当前选中节点
+let idSeq = 1;
+let tx = 0, ty = 0, scale = 1;
+let lastMarkdown = '';
+let renamingId = null;  // 正在重命名的节点 id
+let drag = null;        // {kind:'pan'|'node', ...}
+
+/* ================= Markdown ⇄ 树 ================= */
+
+// Markdown → {root, styles}；样式以 HTML 注释 <!-- mindmap-style:{...} --> 承载
+function parseMarkdown(md) {
+  const root = { text: '思维导图', headingLevel: 0, listIndent: -1, children: [], depth: 0 };
+  const stack = [root];
+  const lines = (md || '').split(/\r?\n/);
+  const styles = {};
+
+  for (const raw of lines) {
+    if (!raw.trim()) continue;
+    const cm = raw.match(/<!--\s*mindmap-style:([\s\S]*?)-->/);
+    if (cm) { try { Object.assign(styles, JSON.parse(cm[1])); } catch (_) {} continue; }
+    if (raw.trimStart().startsWith('<!--')) continue;
+    let m;
+    if ((m = raw.match(/^(#{1,6})\s+(.*)$/))) {
+      const lvl = m[1].length;
+      const node = { text: m[2].trim(), headingLevel: lvl, listIndent: -1, children: [], depth: 0 };
+      while (stack.length > 1 && stack[stack.length - 1].headingLevel >= lvl) stack.pop();
+      stack[stack.length - 1].children.push(node);
+      stack.push(node);
+    } else if ((m = raw.match(/^(\s*)([-*+]|\d+\.)\s+(.*)$/))) {
+      const indent = m[1].replace(/\t/g, '  ').length;
+      const node = { text: m[3].trim(), headingLevel: null, listIndent: indent, children: [], depth: 0 };
+      while (stack.length > 1) {
+        const top = stack[stack.length - 1];
+        if (top.listIndent === -1) { if (indent === 0) break; stack.pop(); continue; }
+        if (top.listIndent >= indent) { stack.pop(); continue; }
+        break;
+      }
+      stack[stack.length - 1].children.push(node);
+      stack.push(node);
+    } else if ((m = raw.match(/^>\s*(.*)$/))) {
+      // 引用忽略
+    } else {
+      const text = raw.replace(/[*_`]/g, '').trim();
+      if (!text) continue;
+      const node = { text, headingLevel: null, listIndent: 0, children: [], depth: 0 };
+      stack[stack.length - 1].children.push(node);
+    }
+  }
+  return { root, styles };
+}
+
+// 分配 id、建立 parent 引用、套用样式（样式按路径键 "0.1.2" 匹配）
+function assignIdsAndStyles(root, styles) {
+  (function walk(n, path) {
+    n.id = idSeq++;
+    const s = styles[path];
+    if (s) { if (s.tc) n.tc = s.tc; if (s.fs) n.fs = s.fs; if (s.ec) n.ec = s.ec; }
+    n.children.forEach((c, i) => { c.parent = n; walk(c, path === '' ? String(i) : path + '.' + i); });
+  })(root, '');
+}
+
+// 收集非默认样式为 {路径: {tc,fs,ec}}
+function collectStyles(root) {
+  const styles = {};
+  (function walk(n, path) {
+    if (n.tc || n.fs || n.ec) {
+      const s = {};
+      if (n.tc) s.tc = n.tc;
+      if (n.fs) s.fs = n.fs;
+      if (n.ec) s.ec = n.ec;
+      styles[path] = s;
+    }
+    n.children.forEach((c, i) => walk(c, path === '' ? String(i) : path + '.' + i));
+  })(root, '');
+  return styles;
+}
+
+// 树 → Markdown（末尾附紧凑样式注释，保证「改图不改样式」往返无损）
+function toMarkdown(root) {
+  const lines = ['# ' + (root.text || '思维导图')];
+  if (root.children.length) lines.push('');
+  (function walk(n, depth) {
+    n.children.forEach(c => {
+      lines.push('  '.repeat(depth) + '- ' + (c.text || ''));
+      walk(c, depth + 1);
+    });
+  })(root, 0);
+  const md = lines.join('\n');
+  const styles = collectStyles(root);
+  if (Object.keys(styles).length) {
+    return md + '\n\n<!-- mindmap-style:' + JSON.stringify(styles) + ' -->\n';
+  }
+  return md + '\n';
+}
+
+/* ================= 布局 ================= */
+
+function measure(text, fs) {
+  let w = 0;
+  for (const ch of (text || '')) w += (ch.charCodeAt(0) > 255 ? 14 : 8);
+  const k = (fs || DEFAULT_FS) / DEFAULT_FS;
+  return Math.max(72, Math.min(440, w * k + 26));
+}
+
+function buildLayout(root) {
+  const GAP_X = 46, GAP_Y = 12;
+  const nodes = [], links = [], colW = [];
+  let maxDepth = 0;
+
+  (function walk(n, d) {
+    n.depth = d;
+    maxDepth = Math.max(maxDepth, d);
+    const fs = n.fs || DEFAULT_FS;
+    n.w = measure(n.text, fs);
+    n.h = Math.max(30, Math.round(fs * 1.9));
+    colW[d] = Math.max(colW[d] || 0, n.w);
+    n.children.forEach(c => walk(c, d + 1));
+  })(root, 0);
+
+  const colX = [0];
+  for (let d = 1; d <= maxDepth; d++) colX[d] = colX[d - 1] + colW[d - 1] + GAP_X;
+
+  let cursorY = 0;
+  (function place(n) {
+    if (!n.children.length) {
+      n.y = cursorY;
+      cursorY += n.h + GAP_Y;
+    } else {
+      n.children.forEach(place);
+      const first = n.children[0], last = n.children[n.children.length - 1];
+      n.y = (first.y + last.y) / 2;
+    }
+    n.x = colX[n.depth];
+    nodes.push(n);
+    n.children.forEach(c => { c.parent = n; });
+  })(root);
+
+  nodes.forEach(n => { if (n.parent && n !== root) links.push({ from: n.parent, to: n }); });
+
+  let maxX = -Infinity, maxY = -Infinity;
+  nodes.forEach(n => { maxX = Math.max(maxX, n.x + n.w); maxY = Math.max(maxY, n.y + n.h); });
+  return { nodes, links, bbox: { x: 0, y: 0, w: maxX, h: maxY } };
+}
+
+/* ================= 渲染 ================= */
+
+function render(md, opts) {
+  opts = opts || {};
+  lastMarkdown = md || '';
+  idSeq = 1;
+  const parsed = parseMarkdown(lastMarkdown);
+  assignIdsAndStyles(parsed.root, parsed.styles);
+  tree = parsed.root;
+  selected = null;
+  renamingId = null;
+  renamer.style.display = 'none';
+  relayout(opts.fit !== false);
+}
+
+function relayout(doFit) {
+  byId = new Map();
+  layout = buildLayout(tree);
+  layout.nodes.forEach(n => byId.set(n.id, n));
+  draw();
+  if (doFit) fit();
+}
+
+function draw() {
+  vp.innerHTML = '';
+  if (!tree) { renderEmpty(); return; }
+
+  layout.links.forEach(l => {
+    const p = l.from, c = l.to;
+    const x1 = p.x + p.w, y1 = p.y + p.h / 2;
+    const x2 = c.x, y2 = c.y + c.h / 2;
+    const mx = (x1 + x2) / 2;
+    const path = document.createElementNS(NS, 'path');
+    path.setAttribute('d', `M ${x1} ${y1} C ${mx} ${y1}, ${mx} ${y2}, ${x2} ${y2}`);
+    path.setAttribute('fill', 'none');
+    path.setAttribute('stroke', c.ec || DEFAULT_EDGE);
+    path.setAttribute('stroke-width', '1.6');
+    path.setAttribute('opacity', '0.9');
+    vp.appendChild(path);
+  });
+
+  layout.nodes.forEach(n => {
+    const isSel = selected && selected.id === n.id;
+    const g = document.createElementNS(NS, 'g');
+    g.setAttribute('class', 'node');
+    g.setAttribute('data-id', n.id);
+
+    const rect = document.createElementNS(NS, 'rect');
+    rect.setAttribute('x', n.x); rect.setAttribute('y', n.y);
+    rect.setAttribute('width', n.w); rect.setAttribute('height', n.h);
+    rect.setAttribute('rx', 8); rect.setAttribute('ry', 8);
+    rect.setAttribute('fill', PALETTE[Math.min(n.depth, PALETTE.length - 1)]);
+    rect.setAttribute('stroke', isSel ? '#00E5FF' : '#1E7285');
+    rect.setAttribute('stroke-width', isSel ? 2.4 : 1.2);
+
+    const text = document.createElementNS(NS, 'text');
+    text.setAttribute('x', n.x + 13);
+    text.setAttribute('y', n.y + n.h / 2);
+    text.setAttribute('dominant-baseline', 'middle');
+    text.setAttribute('fill', n.tc || DEFAULT_TEXT);
+    text.setAttribute('font-size', String(n.fs || DEFAULT_FS));
+    text.textContent = n.text.length > 34 ? n.text.slice(0, 34) + '…' : n.text;
+
+    g.appendChild(rect); g.appendChild(text);
+    vp.appendChild(g);
+  });
+
+  apply();
+  syncControls();
+}
+
+function renderEmpty() {
+  const t = document.createElementNS(NS, 'text');
+  t.setAttribute('x', 20); t.setAttribute('y', 40); t.setAttribute('class', 'empty');
+  t.textContent = '在左侧输入 Markdown 后点「Markdown 转思维导图」，或点「示例 / AI 生成」；也可直接在图上编辑。';
+  vp.appendChild(t);
+  syncControls();
+}
+
+function fit() {
+  if (!tree || !layout || !layout.nodes.length) { apply(); return; }
+  const box = svg.getBoundingClientRect();
+  const b = layout.bbox;
+  const pad = 40;
+  const k = Math.min((box.width - pad * 2) / Math.max(1, b.w),
+                     (box.height - pad * 2) / Math.max(1, b.h), 1.1);
+  scale = Math.max(0.12, k);
+  tx = pad;
+  ty = Math.max(pad, (box.height - b.h * scale) / 2);
+  apply();
+}
+
+function apply() { vp.setAttribute('transform', `translate(${tx},${ty}) scale(${scale})`); }
+
+function zoom(factor, cx, cy) {
+  if (!tree) return;
+  const box = svg.getBoundingClientRect();
+  const px = (cx === undefined ? box.width / 2 : cx - box.left);
+  const py = (cy === undefined ? box.height / 2 : cy - box.top);
+  const k2 = Math.min(4, Math.max(0.05, scale * factor));
+  tx = px - (px - tx) * (k2 / scale);
+  ty = py - (py - ty) * (k2 / scale);
+  scale = k2;
+  apply();
+}
+
+/* ================= 交互：选择 / 平移 / 拖拽改父级 ================= */
+
+svg.addEventListener('wheel', e => {
+  e.preventDefault();
+  zoom(e.deltaY < 0 ? 1.12 : 1 / 1.12, e.clientX, e.clientY);
+}, { passive: false });
+
+svg.addEventListener('pointerdown', e => {
+  const g = e.target.closest && e.target.closest('.node');
+  if (g) {
+    const node = byId.get(Number(g.dataset.id));
+    if (node) {
+      select(node);
+      drag = { kind: 'node', node, sx: e.clientX, sy: e.clientY, moved: false };
+    }
+  } else {
+    drag = { kind: 'pan', sx: e.clientX, sy: e.clientY, tx0: tx, ty0: ty, moved: false };
+    svg.classList.add('dragging');
+  }
+  try { svg.setPointerCapture(e.pointerId); } catch (_) {}
+});
+
+svg.addEventListener('pointermove', e => {
+  if (!drag) return;
+  if (drag.kind === 'pan') {
+    tx = drag.tx0 + (e.clientX - drag.sx);
+    ty = drag.ty0 + (e.clientY - drag.sy);
+    if (Math.abs(e.clientX - drag.sx) + Math.abs(e.clientY - drag.sy) > 4) drag.moved = true;
+    apply();
+  } else if (drag.kind === 'node') {
+    if (Math.abs(e.clientX - drag.sx) + Math.abs(e.clientY - drag.sy) > 6) drag.moved = true;
+  }
+});
+
+svg.addEventListener('pointerup', e => {
+  if (!drag) return;
+  const d = drag; drag = null;
+  svg.classList.remove('dragging');
+  try { svg.releasePointerCapture(e.pointerId); } catch (_) {}
+
+  if (d.kind === 'pan' && !d.moved) { select(null); return; }
+  if (d.kind === 'node' && d.moved) {
+    const target = findNodeAtClient(e.clientX, e.clientY);
+    reparent(d.node, target);
+  }
+});
+
+svg.addEventListener('dblclick', e => {
+  const g = e.target.closest && e.target.closest('.node');
+  if (g) { const node = byId.get(Number(g.dataset.id)); if (node) { select(node); startRename(); } }
+});
+
+document.addEventListener('keydown', e => {
+  if (renamingId !== null) return;
+  const tag = (document.activeElement && document.activeElement.tagName || '').toLowerCase();
+  if (tag === 'input' || tag === 'textarea') return;
+  if (e.key === 'Delete' || e.key === 'Backspace') { deleteNode(); e.preventDefault(); }
+  else if (e.key === 'Enter' || e.key === 'F2') { startRename(); e.preventDefault(); }
+  else if (e.key === 'Tab') { addChild(); e.preventDefault(); }
+});
+
+function findNodeAtClient(clientX, clientY) {
+  if (!layout) return null;
+  const r = svg.getBoundingClientRect();
+  const mx = (clientX - r.left - tx) / scale;
+  const my = (clientY - r.top - ty) / scale;
+  let hit = null;
+  layout.nodes.forEach(n => { if (mx >= n.x && mx <= n.x + n.w && my >= n.y && my <= n.y + n.h) hit = n; });
+  return hit;
+}
+
+function select(node) {
+  if (selected === node) { draw(); return; }
+  selected = node;
+  draw();
+}
+
+function isDescendantOf(node, maybeAncestor) {
+  let p = node.parent;
+  while (p) { if (p === maybeAncestor) return true; p = p.parent; }
+  return false;
+}
+
+function reparent(node, target) {
+  if (!tree || !node || !target || node === tree) return false;
+  if (target === node || target === node.parent) return false;
+  if (isDescendantOf(target, node)) { flash('不能把节点移到自己的子节点下'); return false; }
+
+  const oldParent = node.parent;
+  if (oldParent) {
+    const i = oldParent.children.indexOf(node);
+    if (i >= 0) oldParent.children.splice(i, 1);
+  }
+  target.children.push(node);
+  node.parent = target;
+  relayout(false);
+  select(node);
+  emitChanged();
+  return true;
+}
+
+/* ================= 增 / 删 / 改 ================= */
+
+function ensureTree() {
+  if (!tree) {
+    idSeq = 1;
+    const root = { text: '思维导图', children: [], depth: 0 };
+    assignIdsAndStyles(root, {});
+    tree = root;
+  }
+}
+
+function addChild() {
+  ensureTree();
+  if (!selected) { flash('请先选择一个节点'); return; }
+  const node = { text: '新节点', children: [], parent: selected };
+  selected.children.push(node);
+  relayout(false);
+  select(node);
+  emitChanged();
+  startRename();
+}
+
+function addSibling() {
+  if (!selected || selected === tree) { addChild(); return; }
+  const p = selected.parent;
+  const node = { text: '新节点', children: [], parent: p };
+  const i = p.children.indexOf(selected);
+  p.children.splice(i + 1, 0, node);
+  relayout(false);
+  select(node);
+  emitChanged();
+  startRename();
+}
+
+function deleteNode() {
+  if (!selected) { flash('请先选择节点'); return; }
+  if (selected === tree) { flash('不能删除中心主题'); return; }
+  const p = selected.parent;
+  const i = p.children.indexOf(selected);
+  if (i >= 0) p.children.splice(i, 1);
+  relayout(false);
+  select(p);
+  emitChanged();
+}
+
+function startRename() {
+  if (!selected) { flash('请先选择节点'); return; }
+  const n = selected;
+  const sr = svg.getBoundingClientRect();
+  const str = document.getElementById('stage').getBoundingClientRect();
+  renamingId = n.id;
+  renamer.value = n.text;
+  renamer.style.display = 'block';
+  renamer.style.left = ((sr.left - str.left) + tx + n.x * scale) + 'px';
+  renamer.style.top = ((sr.top - str.top) + ty + n.y * scale) + 'px';
+  renamer.style.width = Math.max(120, n.w * scale) + 'px';
+  renamer.style.height = Math.max(24, n.h * scale) + 'px';
+  renamer.focus();
+  renamer.select();
+}
+
+function commitRename() {
+  if (renamingId === null) return;
+  const n = byId.get(renamingId);
+  renamingId = null;
+  renamer.style.display = 'none';
+  if (n) {
+    const v = renamer.value.trim();
+    if (v && v !== n.text) { n.text = v; relayout(false); select(n); emitChanged(); }
+    else { draw(); }
+  }
+}
+
+renamer.addEventListener('keydown', e => {
+  if (e.key === 'Enter') { commitRename(); e.preventDefault(); }
+  else if (e.key === 'Escape') { renamingId = null; renamer.style.display = 'none'; draw(); }
+});
+renamer.addEventListener('blur', commitRename);
+
+/* ================= 样式：文字色 / 连线色 / 字号 ================= */
+
+function applyTextColor(v) { applyStyle('tc', v); }
+function applyLineColor(v) { applyStyle('ec', v); }
+function applyFontSize(v) {
+  const n = parseInt(v, 10);
+  if (isNaN(n)) return;
+  applyStyle('fs', Math.max(8, Math.min(48, n)));
+}
+
+function applyStyle(key, value) {
+  if (!selected) { flash('请先选择节点'); syncControls(); return; }
+  selected[key] = value;
+  relayout(false);
+  emitChanged();
+}
+
+function resetStyle() {
+  if (!selected) { flash('请先选择节点'); return; }
+  delete selected.tc; delete selected.fs; delete selected.ec;
+  relayout(false);
+  emitChanged();
+}
+
+function syncControls() {
+  const has = !!selected;
+  document.getElementById('btnAddChild').disabled = !has;
+  document.getElementById('btnAddSib').disabled = !has;
+  document.getElementById('btnRename').disabled = !has;
+  document.getElementById('btnDelete').disabled = !has || selected === tree;
+  const fsEl = document.getElementById('fontSize');
+  if (has) {
+    document.getElementById('txtColor').value = selected.tc || DEFAULT_TEXT;
+    document.getElementById('lineColor').value = selected.ec || DEFAULT_EDGE;
+    fsEl.value = selected.fs || DEFAULT_FS;
+  }
+}
+
+/* ================= 导出 ================= */
+
+function exportSvgString() {
+  if (!tree || !layout) return '';
+  const b = layout.bbox;
+  const pad = 24;
+  const w = Math.ceil(b.w + pad * 2), h = Math.ceil(b.h + pad * 2);
+  const inner = vp.innerHTML;
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}">
+<rect width="100%" height="100%" fill="#0A0F14"/>
+<g transform="translate(${pad},${pad})">${inner}</g></svg>`;
+}
+
+// 独立交互 HTML：内联当前数据（Markdown + 样式注释）与完整脚本，样式已烘焙且可继续编辑
+function buildStandaloneHtml() {
+  const md = tree ? toMarkdown(tree) : '';
+  const clone = document.documentElement.cloneNode(true);
+  const old = clone.querySelector('#mindmap-data');
+  if (old) old.remove();
+  const s = document.createElement('script');
+  s.id = 'mindmap-data';
+  s.textContent = 'window.__MINDMAP_INIT_MD__=' + JSON.stringify(md) + ';';
+  const head = clone.querySelector('head');
+  head.appendChild(s);
+  return '<!DOCTYPE html>\n' + clone.outerHTML;
+}
+
+function doExport(format) {
+  if (!tree) { flash('暂无可导出的内容'); return; }
+  if (format === 'md') { bridge({ type: 'export', format: 'md', data: toMarkdown(tree) }); return; }
+  if (format === 'svg') { bridge({ type: 'export', format: 'svg', data: exportSvgString() }); return; }
+  if (format === 'html') { bridge({ type: 'export', format: 'html', data: buildStandaloneHtml() }); return; }
+  if (format === 'png') {
+    const svgText = exportSvgString();
+    const blob = new Blob([svgText], { type: 'image/svg+xml;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const img = new Image();
+    img.onload = () => {
+      const k = 2;
+      const canvas = document.createElement('canvas');
+      canvas.width = img.width * k; canvas.height = img.height * k;
+      const ctx = canvas.getContext('2d');
+      ctx.fillStyle = '#0A0F14'; ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+      URL.revokeObjectURL(url);
+      bridge({ type: 'export', format: 'png', data: canvas.toDataURL('image/png').split(',')[1] });
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); flash('PNG 导出失败'); };
+    img.src = url;
+  }
+}
+
+/* ================= 双向同步 / 宿主桥 ================= */
+
+// 图编辑 → 生成 Markdown → 回传宿主（宿主更新文本框，不再回灌渲染，避免循环）
+function emitChanged() {
+  lastMarkdown = toMarkdown(tree);
+  bridge({ type: 'changed', markdown: lastMarkdown });
+}
+
+function bridge(payload) {
+  if (window.chrome && window.chrome.webview) window.chrome.webview.postMessage(payload);
+}
+
+function flash(msg) {
+  const t = document.createElement('div');
+  t.textContent = msg;
+  t.style.cssText = 'position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:#1B2733;border:1px solid #2A3A49;color:#BFE9F5;padding:8px 14px;border-radius:8px;font-size:12px;z-index:99;';
+  document.body.appendChild(t);
+  setTimeout(() => t.remove(), 2200);
+}
+
+/* ================= 启动 ================= */
+
+if (typeof window.__MINDMAP_INIT_MD__ === 'string') {
+  // 独立 HTML：自带数据，直接渲染且可继续编辑
+  render(window.__MINDMAP_INIT_MD__, { fit: true });
+} else if (window.chrome && window.chrome.webview) {
+  window.chrome.webview.addEventListener('message', ev => {
+    const msg = ev.data || {};
+    if (msg.type === 'render') render(msg.markdown || '', { fit: true });
+  });
+  window.chrome.webview.postMessage({ type: 'ready' });
+} else {
+  draw();
+}
+</script>
+</body>
+</html>

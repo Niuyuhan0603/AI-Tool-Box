@@ -1,0 +1,217 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Page
+    x:Class="AI_Tool_Box.Views.PhysicsSimPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <Grid Padding="16,12" RowSpacing="10"
+          Background="{ThemeResource ApplicationPageBackgroundThemeBrush}">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <StackPanel Grid.Row="0" Orientation="Horizontal" Spacing="12">
+            <TextBlock Text="物理题模拟器" FontSize="24" FontWeight="Bold" VerticalAlignment="Center"/>
+            <TextBlock Text="（运动场景：小球 / 斜面 / 弹簧；电路：电池·电阻·电容·电感·开关，可编辑参数并求解）"
+                       Opacity="0.8" VerticalAlignment="Center"/>
+        </StackPanel>
+
+        <Grid Grid.Row="1" ColumnSpacing="10">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="400"/>
+            </Grid.ColumnDefinitions>
+
+            <Border Grid.Column="0" Background="#F7F9FB"
+                    BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                    BorderThickness="1" CornerRadius="8" Padding="4">
+                <Grid>
+                    <Canvas x:Name="SimCanvas" Background="#F7F9FB" SizeChanged="OnCanvasSizeChanged"
+                            PointerPressed="OnSimPointerPressed"
+                            PointerMoved="OnSimPointerMoved"
+                            PointerWheelChanged="OnSimWheel"
+                            PointerReleased="OnSimPointerReleased"
+                            PointerCaptureLost="OnSimPointerCaptureLost"/>
+
+                    <!-- 画布缩放：以画布中心为基准；也可用鼠标滚轮 -->
+                    <StackPanel Orientation="Horizontal" Spacing="4" HorizontalAlignment="Right"
+                                VerticalAlignment="Top" Margin="0,8,8,0">
+                        <Button Content="－" Width="36" Click="OnZoomOutClick" ToolTipService.ToolTip="缩小"/>
+                        <Button Content="100%" MinWidth="56" Click="OnZoomResetClick" ToolTipService.ToolTip="恢复默认比例"/>
+                        <Button Content="＋" Width="36" Click="OnZoomInClick" ToolTipService.ToolTip="放大"/>
+                    </StackPanel>
+                </Grid>
+            </Border>
+
+            <Border Grid.Column="1"
+                    Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                    BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                    BorderThickness="1" CornerRadius="8" Padding="12">
+                <Grid RowSpacing="8">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
+
+                    <RadioButtons x:Name="ModeRadios" Grid.Row="0" MaxColumns="2" SelectedIndex="0"
+                                  SelectionChanged="OnModeSelectionChanged">
+                        <x:String>运动 / 受力</x:String>
+                        <x:String>电路模拟</x:String>
+                    </RadioButtons>
+
+                    <Grid Grid.Row="1">
+
+                        <!-- ==================== 运动 / 受力 ==================== -->
+                        <Grid x:Name="MotionPanel" RowSpacing="8">
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="*"/>
+                                <RowDefinition Height="Auto"/>
+                            </Grid.RowDefinitions>
+
+                            <Grid Grid.Row="0" ColumnSpacing="6">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+                                <TextBox Grid.Column="0" x:Name="GravityBox" Header="重力 g" Text="9.8"/>
+                                <TextBox Grid.Column="1" x:Name="RestitutionBox" Header="弹性 e" Text="0.65"/>
+                                <TextBox Grid.Column="2" x:Name="FrictionBox" Header="摩擦" Text="0.03"/>
+                            </Grid>
+
+                            <ScrollViewer Grid.Row="1" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled"
+                                          HorizontalScrollMode="Enabled" VerticalScrollMode="Disabled">
+                                <StackPanel Orientation="Horizontal" Spacing="6">
+                                    <Button x:Name="PlayButton" Content="开始" Style="{StaticResource AccentButtonStyle}"
+                                            Click="OnPlayClick"/>
+                                    <Button Content="暂停" Click="OnPauseClick"/>
+                                    <Button Content="重置" Click="OnResetClick"/>
+                                    <Button Content="自由落体" Click="OnPresetFallClick"/>
+                                    <Button Content="抛体" Click="OnPresetProjectileClick"/>
+                                    <Button Content="斜面" Click="OnPresetInclineClick"/>
+                                    <Button Content="+ 固定水平面" Click="OnAddPlaneClick"/>
+                                    <Button Content="+ 固定木板" Click="OnAddBoardClick"/>
+                                </StackPanel>
+                            </ScrollViewer>
+
+                            <Grid Grid.Row="2" ColumnSpacing="6">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <TextBox Grid.Column="0" x:Name="SpringKBox" Header="弹簧 k (N/m)" Text="20"
+                                         TextChanged="OnSpringParamChanged"/>
+                                <TextBox Grid.Column="1" x:Name="SpringL0Box" Header="原长 L₀ (m)" Text="1.5"
+                                         TextChanged="OnSpringParamChanged"/>
+                                <TextBox Grid.Column="2" x:Name="SpringCBox" Header="阻尼 c" Text="0.2"
+                                         TextChanged="OnSpringParamChanged"/>
+                                <Button Grid.Column="3" x:Name="AddSpringButton" Content="弹簧工具"
+                                        VerticalAlignment="Bottom" Click="OnSpringToolClick"/>
+                            </Grid>
+
+                            <TextBlock Grid.Row="3"
+                                       Text="弹簧工具：打开后在画布空白处点击放置弹簧（另一端自动连接最近的小球）；点击弹簧可选中，参数在左侧编辑，Delete 删除。"
+                                       Opacity="0.8" FontSize="12" TextWrapping="Wrap"/>
+
+                            <TextBox Grid.Row="4" x:Name="SceneBox" AcceptsReturn="True" TextWrapping="Wrap"
+                                     FontFamily="Consolas" FontSize="12"
+                                     ScrollViewer.VerticalScrollBarVisibility="Auto"/>
+
+                            <StackPanel Grid.Row="5" Spacing="6">
+                                <TextBox x:Name="AiPromptBox" PlaceholderText="用一句话描述题目，如：从 5 米高处以 3 m/s 水平抛出小球，落在斜面上"/>
+                                <StackPanel Orientation="Horizontal" Spacing="6">
+                                    <Button Content="应用场景 JSON" Click="OnApplySceneClick"/>
+                                    <Button Content="AI 生成场景" Click="OnAiSceneClick"/>
+                                    <ProgressRing x:Name="BusyRing" IsActive="False" Width="20" Height="20"/>
+                                </StackPanel>
+                            </StackPanel>
+                        </Grid>
+
+                        <!-- ==================== 电路模拟 ==================== -->
+                        <Grid x:Name="CircuitPanel" RowSpacing="8" Visibility="Collapsed">
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="*"/>
+                                <RowDefinition Height="Auto"/>
+                            </Grid.RowDefinitions>
+
+                            <ScrollViewer Grid.Row="0" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled"
+                                          HorizontalScrollMode="Enabled" VerticalScrollMode="Disabled">
+                                <StackPanel Orientation="Horizontal" Spacing="4">
+                                    <Button Content="+ 电池" Tag="Battery" Click="OnAddCircuitElementClick"/>
+                                    <Button Content="+ 电阻" Tag="Resistor" Click="OnAddCircuitElementClick"/>
+                                    <Button Content="+ 电容" Tag="Capacitor" Click="OnAddCircuitElementClick"/>
+                                    <Button Content="+ 电感" Tag="Inductor" Click="OnAddCircuitElementClick"/>
+                                    <Button Content="+ 开关" Tag="Switch" Click="OnAddCircuitElementClick"/>
+                                    <Button Content="+ 电流表" Tag="Ammeter" Click="OnAddCircuitElementClick"/>
+                                    <Button Content="+ 电压表" Tag="Voltmeter" Click="OnAddCircuitElementClick"/>
+                                    <Button x:Name="WireButton" Content="连线" Click="OnWireModeClick"/>
+                                    <Button Content="删除元件" Click="OnDeleteCircuitElementClick"/>
+                                    <Button Content="清空电路" Click="OnClearCircuitClick"/>
+                                </StackPanel>
+                            </ScrollViewer>
+
+                            <StackPanel Grid.Row="1" Spacing="4">
+                                <TextBlock x:Name="SelectedElementText" Text="未选中元件（点击画布中的元件可编辑参数）"
+                                           FontWeight="SemiBold" TextWrapping="Wrap"/>
+                                <Grid ColumnSpacing="6" RowSpacing="4">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="*"/>
+                                    </Grid.ColumnDefinitions>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="Auto"/>
+                                    </Grid.RowDefinitions>
+                                    <TextBox Grid.Row="0" Grid.Column="0" x:Name="EmfBox" Header="电动势 E (V)" Text="6"
+                                             TextChanged="OnCircuitParamChanged" Visibility="Collapsed"/>
+                                    <TextBox Grid.Row="0" Grid.Column="1" x:Name="InternalRBox" Header="内阻 r (Ω)" Text="0.5"
+                                             TextChanged="OnCircuitParamChanged" Visibility="Collapsed"/>
+                                    <TextBox Grid.Row="1" Grid.Column="0" x:Name="ResistanceBox" Header="阻值 R (Ω)" Text="10"
+                                             TextChanged="OnCircuitParamChanged" Visibility="Collapsed"/>
+                                    <TextBox Grid.Row="1" Grid.Column="1" x:Name="CapacitanceBox" Header="电容 C (F)" Text="0.001"
+                                             TextChanged="OnCircuitParamChanged" Visibility="Collapsed"/>
+                                    <TextBox Grid.Row="2" Grid.Column="0" x:Name="InductanceBox" Header="电感 L (H)" Text="0.1"
+                                             TextChanged="OnCircuitParamChanged" Visibility="Collapsed"/>
+                                    <ToggleSwitch Grid.Row="2" Grid.Column="1" x:Name="SwitchClosedToggle" Header="开关状态"
+                                                  OnContent="闭合" OffContent="断开" Visibility="Collapsed"
+                                                  Toggled="OnSwitchToggled"/>
+                                </Grid>
+                            </StackPanel>
+
+                            <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Auto">
+                                <TextBlock x:Name="CircuitResultText" FontFamily="Consolas" FontSize="12"
+                                           TextWrapping="Wrap" IsTextSelectionEnabled="True"
+                                           Text="提示：添加元件后可拖动摆放；点「连线」依次点击两个端子（元件两端的小圆点）建立导线；「求解」计算直流工作点，「运行」以 1 ms 步长仿真 RC/RL 暂态。"/>
+                            </ScrollViewer>
+
+                            <ScrollViewer Grid.Row="3" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled"
+                                          HorizontalScrollMode="Enabled" VerticalScrollMode="Disabled">
+                                <StackPanel Orientation="Horizontal" Spacing="6">
+                                    <Button Content="求解（直流）" Style="{StaticResource AccentButtonStyle}"
+                                            Click="OnSolveDcClick"/>
+                                    <Button Content="运行暂态" Click="OnRunTransientClick"/>
+                                    <Button Content="暂停" Click="OnPauseTransientClick"/>
+                                    <Button Content="重置状态" Click="OnResetCircuitStateClick"/>
+                                </StackPanel>
+                            </ScrollViewer>
+                        </Grid>
+                    </Grid>
+                </Grid>
+            </Border>
+        </Grid>
+
+        <TextBlock x:Name="StatusText" Grid.Row="2" FontSize="12" Opacity="0.85" TextWrapping="Wrap"
+                   Text="单位为米 / 秒 / 安 / 伏；球在地面与斜面上按弹性系数反弹，摩擦衰减切向速度。视图操作：鼠标滚轮缩放，按住右键拖动平移；右键点击固定水平面 / 固定木板会弹窗确认，确认后可用左键拖动移动它。"/>
+    </Grid>
+</Page>

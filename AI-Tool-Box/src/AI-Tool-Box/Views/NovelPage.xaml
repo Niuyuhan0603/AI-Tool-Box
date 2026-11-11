@@ -1,0 +1,106 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Page
+    x:Class="AI_Tool_Box.Views.NovelPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <Grid Padding="16,12" RowSpacing="10"
+          Background="{ThemeResource ApplicationPageBackgroundThemeBrush}">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <StackPanel Grid.Row="0" Spacing="2">
+            <TextBlock Text="AI 小说创作" FontSize="24" FontWeight="Bold"/>
+            <TextBlock x:Name="ApiInfoText" FontSize="12" Opacity="0.8" TextWrapping="Wrap"
+                       Text="正在读取已保存的 API 配置…"/>
+        </StackPanel>
+
+        <Grid Grid.Row="1" ColumnSpacing="10">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="320"/>
+                <ColumnDefinition Width="*"/>
+            </Grid.ColumnDefinitions>
+
+            <!-- ===== 左：工作区 / 章节 / 前情 ===== -->
+            <Border Grid.Column="0"
+                    Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                    BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                    BorderThickness="1" CornerRadius="8" Padding="12">
+                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                    <StackPanel Spacing="8">
+                        <TextBlock Text="工作区（文件夹）" Style="{StaticResource BodyStrongTextBlockStyle}"/>
+                        <TextBox x:Name="WorkspaceBox" IsReadOnly="True"
+                                 PlaceholderText="尚未选择工作区文件夹"/>
+                        <StackPanel Orientation="Horizontal" Spacing="6">
+                            <Button Content="选择工作区…" Click="OnPickWorkspaceClick"/>
+                            <Button Content="打开文件夹" Click="OnOpenWorkspaceClick"/>
+                            <Button Content="刷新章节" Click="OnRefreshChaptersClick"/>
+                        </StackPanel>
+
+                        <TextBlock Text="已有章节（点击载入正文，后续续写会把它作为前情）"
+                                   Style="{StaticResource BodyStrongTextBlockStyle}" TextWrapping="Wrap"/>
+                        <ListView x:Name="ChapterList" Height="170"
+                                  SelectionChanged="OnChapterSelected"/>
+
+                        <TextBlock Text="前情提要（自定义设定，随工作区正文一起发送）"
+                                   Style="{StaticResource BodyStrongTextBlockStyle}" TextWrapping="Wrap"/>
+                        <TextBox x:Name="PremiseBox" AcceptsReturn="True" TextWrapping="Wrap" Height="110"
+                                 PlaceholderText="人物关系、世界观、已发生的关键事件、写作风格要求…"/>
+
+                        <TextBlock Text="前情上下文字符预算" Style="{StaticResource BodyStrongTextBlockStyle}"/>
+                        <TextBox x:Name="BudgetBox" Text="12000"/>
+
+                        <TextBlock x:Name="ContextInfoText" FontSize="12" Opacity="0.75" TextWrapping="Wrap"
+                                   Text="尚未加载工作区内容。"/>
+                    </StackPanel>
+                </ScrollViewer>
+            </Border>
+
+            <!-- ===== 右：续写与实时正文 ===== -->
+            <Grid Grid.Column="1" RowSpacing="8">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="*"/>
+                </Grid.RowDefinitions>
+
+                <StackPanel Grid.Row="0" Spacing="8">
+                    <Grid ColumnSpacing="8">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="220"/>
+                        </Grid.ColumnDefinitions>
+                        <TextBox Grid.Column="0" x:Name="ModelBox" Header="模型"
+                                 PlaceholderText="如 deepseek-chat / gpt-4o-mini"/>
+                        <TextBox Grid.Column="1" x:Name="FileNameBox" Header="保存为（工作区内）" Text="第1章.md"/>
+                    </Grid>
+                    <TextBox x:Name="InstructionBox" Header="本次续写要求" AcceptsReturn="True"
+                             TextWrapping="Wrap" Height="80"
+                             PlaceholderText="如：写主角与师父重逢的一幕，两人因旧事起争执，结尾留下悬念。"/>
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <Button x:Name="GenerateButton" Content="开始流式续写" Style="{StaticResource AccentButtonStyle}"
+                                Click="OnGenerateClick"/>
+                        <Button x:Name="StopButton" Content="停止" Click="OnStopClick" IsEnabled="False"/>
+                        <Button Content="保存到工作区" Click="OnSaveChapterClick"/>
+                        <ProgressRing x:Name="BusyRing" IsActive="False" Width="20" Height="20"/>
+                    </StackPanel>
+                </StackPanel>
+
+                <Border Grid.Row="1"
+                        Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                        BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                        BorderThickness="1" CornerRadius="8">
+                    <ScrollViewer x:Name="OutputScroll" VerticalScrollBarVisibility="Auto" Padding="4">
+                        <TextBlock x:Name="NovelOutput" TextWrapping="Wrap" IsTextSelectionEnabled="True"
+                                   FontSize="14" Padding="8" LineHeight="22"/>
+                    </ScrollViewer>
+                </Border>
+            </Grid>
+        </Grid>
+
+        <TextBlock Grid.Row="2" x:Name="StatusText" FontSize="12" Opacity="0.85" TextWrapping="Wrap"
+                   Text="就绪。选择工作区后即可开始流式续写。"/>
+    </Grid>
+</Page>

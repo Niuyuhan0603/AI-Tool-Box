@@ -1,0 +1,286 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Page
+    x:Class="AI_Tool_Box.Views.CalculatorPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <Grid Padding="16,12" RowSpacing="10"
+          Background="{ThemeResource ApplicationPageBackgroundThemeBrush}">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <!-- 标题 -->
+        <StackPanel Grid.Row="0" Spacing="2">
+            <TextBlock Text="科学计算器 / 函数绘图" FontSize="24" FontWeight="Bold"/>
+            <TextBlock Text="（支持 LaTeX / 自然书写：\frac、\sqrt、^{}、\pi；公式区可直接点击空位输入）"
+                       Opacity="0.8" TextWrapping="Wrap"/>
+        </StackPanel>
+
+        <!-- 主体：整体可上下滚动，窄窗口不溢出 -->
+        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" VerticalScrollMode="Enabled"
+                      HorizontalScrollMode="Disabled" Padding="0,0,6,0">
+            <StackPanel Spacing="12">
+
+                <!-- ============ 上部：左侧科学计算器（卡西欧排布）+ 右侧函数绘图区 ============ -->
+                <Grid ColumnSpacing="12">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="1.25*"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+
+                    <!-- 左：科学计算器 -->
+                    <Border Grid.Column="0"
+                            Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                            BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                            BorderThickness="1" CornerRadius="8" Padding="14">
+                        <StackPanel Spacing="10">
+                            <TextBlock Text="科学计算器" FontSize="18" FontWeight="SemiBold"/>
+
+                            <!-- 显示屏：当前算式（可编辑）+ 二维排版预览 + 结果 -->
+                            <Border Background="{ThemeResource LayerFillColorDefaultBrush}" CornerRadius="8" Padding="10,8">
+                                <StackPanel Spacing="6">
+                                    <TextBox x:Name="ExprBox"
+                                             PlaceholderText="例如：2^{10} + \sqrt{144} + \sin(\frac{\pi}{2})"
+                                             AcceptsReturn="False" KeyDown="OnExprKeyDown" TextChanged="OnExprTextChanged"/>
+                                    <!-- 所见即所得：真分数、根号带上划线、上下标；空的 {} 可点击后直接输入 -->
+                                    <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                                            CornerRadius="6" Padding="10,6" MinHeight="34">
+                                        <Grid x:Name="ExprTypesetHost" MinHeight="30"/>
+                                    </Border>
+                                    <TextBlock x:Name="ResultText" Text="—" FontSize="22" FontWeight="SemiBold"
+                                               TextWrapping="Wrap" IsTextSelectionEnabled="True"/>
+                                </StackPanel>
+                            </Border>
+
+                            <!-- 数学键盘（卡西欧风格：6 列 × 7 行） -->
+                            <Grid ColumnSpacing="4" RowSpacing="4">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
+                                </Grid.RowDefinitions>
+
+                                <!-- 第 0 行：三角函数 / 对数 / 指数 -->
+                                <Button Grid.Row="0" Grid.Column="0" Content="sin" MinHeight="38" Tag="sin(" Click="OnKeypadClick"/>
+                                <Button Grid.Row="0" Grid.Column="1" Content="cos" MinHeight="38" Tag="cos(" Click="OnKeypadClick"/>
+                                <Button Grid.Row="0" Grid.Column="2" Content="tan" MinHeight="38" Tag="tan(" Click="OnKeypadClick"/>
+                                <Button Grid.Row="0" Grid.Column="3" Content="ln" MinHeight="38" Tag="ln(" Click="OnKeypadClick"/>
+                                <Button Grid.Row="0" Grid.Column="4" Content="log" MinHeight="38" Tag="log(" Click="OnKeypadClick"/>
+                                <Button Grid.Row="0" Grid.Column="5" Content="exp" MinHeight="38" Tag="exp(" Click="OnKeypadClick"/>
+
+                                <!-- 第 1 行：分数 / 幂 / 根号 -->
+                                <Button Grid.Row="1" Grid.Column="0" Content="分数" MinHeight="38" Tag="frac" Click="OnKeypadClick"/>
+                                <Button Grid.Row="1" Grid.Column="1" Content="x²" MinHeight="38" Tag="pow" Click="OnKeypadClick"/>
+                                <Button Grid.Row="1" Grid.Column="2" Content="xʸ" MinHeight="38" Tag="^" Click="OnKeypadClick"/>
+                                <Button Grid.Row="1" Grid.Column="3" Content="√" MinHeight="38" Tag="sqrt" Click="OnKeypadClick"/>
+                                <Button Grid.Row="1" Grid.Column="4" Content="ⁿ√" MinHeight="38" Tag="rootn" Click="OnKeypadClick"/>
+                                <Button Grid.Row="1" Grid.Column="5" Content="∛" MinHeight="38" Tag="root3" Click="OnKeypadClick"/>
+
+                                <!-- 第 2 行：常量 / 绝对值 / 括号 / eˣ -->
+                                <Button Grid.Row="2" Grid.Column="0" Content="π" MinHeight="38" Tag="pi" Click="OnKeypadClick"/>
+                                <Button Grid.Row="2" Grid.Column="1" Content="e" MinHeight="38" Tag="e" Click="OnKeypadClick"/>
+                                <Button Grid.Row="2" Grid.Column="2" Content="|x|" MinHeight="38" Tag="abs(" Click="OnKeypadClick"/>
+                                <Button Grid.Row="2" Grid.Column="3" Content="(" MinHeight="38" Tag="(" Click="OnKeypadClick"/>
+                                <Button Grid.Row="2" Grid.Column="4" Content=")" MinHeight="38" Tag=")" Click="OnKeypadClick"/>
+                                <Button Grid.Row="2" Grid.Column="5" Content="eˣ" MinHeight="38" Tag="epow" Click="OnKeypadClick"/>
+
+                                <!-- 第 3 行：数字 7-9 / ÷ / AC / DEL -->
+                                <Button Grid.Row="3" Grid.Column="0" Content="7" MinHeight="38" Tag="7" Click="OnKeypadClick"/>
+                                <Button Grid.Row="3" Grid.Column="1" Content="8" MinHeight="38" Tag="8" Click="OnKeypadClick"/>
+                                <Button Grid.Row="3" Grid.Column="2" Content="9" MinHeight="38" Tag="9" Click="OnKeypadClick"/>
+                                <Button Grid.Row="3" Grid.Column="3" Content="÷" MinHeight="38" Tag="/" Click="OnKeypadClick"/>
+                                <Button Grid.Row="3" Grid.Column="4" Content="AC" MinHeight="38" Tag="clear" Click="OnKeypadClick"/>
+                                <Button Grid.Row="3" Grid.Column="5" Content="DEL" MinHeight="38" Tag="del" Click="OnKeypadClick"/>
+
+                                <!-- 第 4 行：数字 4-6 / × / 变量 -->
+                                <Button Grid.Row="4" Grid.Column="0" Content="4" MinHeight="38" Tag="4" Click="OnKeypadClick"/>
+                                <Button Grid.Row="4" Grid.Column="1" Content="5" MinHeight="38" Tag="5" Click="OnKeypadClick"/>
+                                <Button Grid.Row="4" Grid.Column="2" Content="6" MinHeight="38" Tag="6" Click="OnKeypadClick"/>
+                                <Button Grid.Row="4" Grid.Column="3" Content="×" MinHeight="38" Tag="*" Click="OnKeypadClick"/>
+                                <Button Grid.Row="4" Grid.Column="4" Content="x" MinHeight="38" Tag="x" Click="OnKeypadClick"/>
+                                <Button Grid.Row="4" Grid.Column="5" Content="y" MinHeight="38" Tag="y" Click="OnKeypadClick"/>
+
+                                <!-- 第 5 行：数字 1-3 / − / . / , -->
+                                <Button Grid.Row="5" Grid.Column="0" Content="1" MinHeight="38" Tag="1" Click="OnKeypadClick"/>
+                                <Button Grid.Row="5" Grid.Column="1" Content="2" MinHeight="38" Tag="2" Click="OnKeypadClick"/>
+                                <Button Grid.Row="5" Grid.Column="2" Content="3" MinHeight="38" Tag="3" Click="OnKeypadClick"/>
+                                <Button Grid.Row="5" Grid.Column="3" Content="−" MinHeight="38" Tag="-" Click="OnKeypadClick"/>
+                                <Button Grid.Row="5" Grid.Column="4" Content="." MinHeight="38" Tag="." Click="OnKeypadClick"/>
+                                <Button Grid.Row="5" Grid.Column="5" Content="," MinHeight="38" Tag="," Click="OnKeypadClick"/>
+
+                                <!-- 第 6 行：0 / = / + -->
+                                <Button Grid.Row="6" Grid.Column="0" Grid.ColumnSpan="2" Content="0" MinHeight="38" Tag="0" Click="OnKeypadClick"/>
+                                <Button Grid.Row="6" Grid.Column="2" Grid.ColumnSpan="2" Content="=" MinHeight="38"
+                                        Style="{StaticResource AccentButtonStyle}" Tag="=" Click="OnKeypadClick"/>
+                                <Button Grid.Row="6" Grid.Column="4" Grid.ColumnSpan="2" Content="+" MinHeight="38" Tag="+" Click="OnKeypadClick"/>
+                            </Grid>
+
+                            <!-- 变量取值 + 计算 / AI -->
+                            <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled"
+                                          HorizontalScrollMode="Enabled" VerticalScrollMode="Disabled">
+                                <StackPanel Orientation="Horizontal" Spacing="8">
+                                    <TextBlock Text="x =" VerticalAlignment="Center"/>
+                                    <TextBox x:Name="XBox" Width="80" Text="0"/>
+                                    <TextBlock Text="y =" VerticalAlignment="Center"/>
+                                    <TextBox x:Name="YBox" Width="80" Text="0"/>
+                                    <Button Content="计算" Style="{StaticResource AccentButtonStyle}" Click="OnCalculateClick"/>
+                                    <Button Content="AI 解析题目" Click="OnAiParseClick"/>
+                                </StackPanel>
+                            </ScrollViewer>
+
+                            <!-- 微积分：求导 / 二阶导 / 定积分 / 偏导 -->
+                            <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled"
+                                          HorizontalScrollMode="Enabled" VerticalScrollMode="Disabled">
+                                <StackPanel Spacing="6">
+                                    <Grid ColumnSpacing="6" RowSpacing="6">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <Grid.RowDefinitions>
+                                            <RowDefinition Height="Auto"/>
+                                            <RowDefinition Height="Auto"/>
+                                        </Grid.RowDefinitions>
+                                        <Button Grid.Row="0" Grid.Column="0" Content="求导 d/dx" MinWidth="120" Tag="deriv" Click="OnCalculusClick"/>
+                                        <Button Grid.Row="0" Grid.Column="1" Content="二阶导 d²/dx²" MinWidth="120" Tag="deriv2" Click="OnCalculusClick"/>
+                                        <Button Grid.Row="0" Grid.Column="2" Content="偏导 ∂f/∂x" MinWidth="120" Tag="partialX" Click="OnCalculusClick"/>
+                                        <Button Grid.Row="0" Grid.Column="3" Content="偏导 ∂f/∂y" MinWidth="120" Tag="partialY" Click="OnCalculusClick"/>
+                                        <Button Grid.Row="1" Grid.Column="0" Content="全微分 df" MinWidth="120" Tag="diffTotal" Click="OnCalculusClick"/>
+                                        <Button Grid.Row="1" Grid.Column="1" Content="梯度 ∇f" MinWidth="120" Tag="gradient" Click="OnCalculusClick"/>
+                                        <Button Grid.Row="1" Grid.Column="2" Content="定积分 ∫ₐᵇ f dx" MinWidth="120" Tag="integral" Click="OnCalculusClick"/>
+                                        <Button Grid.Row="1" Grid.Column="3" Content="变上限积分 F(x)=∫₀ˣ" MinWidth="120" Tag="integralX" Click="OnCalculusClick"/>
+                                    </Grid>
+                                    <StackPanel Orientation="Horizontal" Spacing="6">
+                                        <TextBlock Text="积分下限 a =" VerticalAlignment="Center"/>
+                                        <TextBox x:Name="ABox" Width="70" Text="0"/>
+                                        <TextBlock Text="上限 b =" VerticalAlignment="Center"/>
+                                        <TextBox x:Name="BBox" Width="70" Text="1"/>
+                                    </StackPanel>
+                                </StackPanel>
+                            </ScrollViewer>
+
+                            <!-- 历史记录 -->
+                            <Grid RowSpacing="6">
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="140"/>
+                                </Grid.RowDefinitions>
+                                <StackPanel Grid.Row="0" Orientation="Horizontal" Spacing="8">
+                                    <TextBlock Text="历史记录" FontWeight="SemiBold" VerticalAlignment="Center"/>
+                                    <Button Content="清空" Click="OnClearHistoryClick"/>
+                                </StackPanel>
+                                <ListView Grid.Row="1" x:Name="HistoryList" SelectionMode="Single"
+                                          DoubleTapped="OnHistoryDoubleTapped">
+                                    <ListView.ItemTemplate>
+                                        <DataTemplate>
+                                            <TextBlock Text="{Binding}" TextWrapping="Wrap" FontFamily="Consolas"
+                                                       IsTextSelectionEnabled="True"/>
+                                        </DataTemplate>
+                                    </ListView.ItemTemplate>
+                                </ListView>
+                            </Grid>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- 右：函数绘图区（保持在计算器右侧） -->
+                    <Grid Grid.Column="1" RowSpacing="8">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="*"/>
+                            <RowDefinition Height="Auto"/>
+                        </Grid.RowDefinitions>
+                        <TextBlock Grid.Row="0" Text="函数绘图 y = f(x)" FontSize="18" FontWeight="SemiBold"
+                                   TextWrapping="Wrap"/>
+                        <Border Grid.Row="1" Background="White" CornerRadius="8" Padding="0"
+                                BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1"
+                                MinHeight="380">
+                            <Canvas x:Name="PlotCanvas" Background="White" SizeChanged="OnCanvasSizeChanged"
+                                    PointerPressed="OnPlotPointerPressed"
+                                    PointerMoved="OnPlotPointerMoved"
+                                    PointerWheelChanged="OnPlotWheel"
+                                    PointerReleased="OnPlotPointerReleased"
+                                    PointerCaptureLost="OnPlotPointerCaptureLost"/>
+                        </Border>
+                        <TextBlock Grid.Row="2" x:Name="TraceText" FontSize="12" Opacity="0.85" TextWrapping="Wrap"
+                                   Text="左键拖动红点可读取函数值（x 与 y）；左键拖动其他位置平移图像（左右 + 上下）；右键拖动亦可平移。"/>
+                    </Grid>
+                </Grid>
+
+                <!-- ============ 下部：函数表达式输入 + 绘图控制 ============ -->
+                <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                        BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                        BorderThickness="1" CornerRadius="8" Padding="14">
+                    <StackPanel Spacing="8">
+                        <TextBlock Text="函数表达式输入 / 绘图控制" FontSize="18" FontWeight="SemiBold"/>
+
+                        <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled"
+                                      HorizontalScrollMode="Enabled" VerticalScrollMode="Disabled">
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                <TextBlock Text="y =" VerticalAlignment="Center"/>
+                                <TextBox x:Name="PlotExprBox" Width="320" Text="sin(x)" TextChanged="OnPlotExprChanged"
+                                         PlaceholderText="f(x)，例如：x^{2}-2x+1 / \frac{\sin(x)}{x} / \sqrt{x}"/>
+                                <TextBlock Text="x 范围" VerticalAlignment="Center"/>
+                                <TextBox x:Name="XMinBox" Width="70" Text="-10"/>
+                                <TextBlock Text="~" VerticalAlignment="Center"/>
+                                <TextBox x:Name="XMaxBox" Width="70" Text="10"/>
+                                <Button Content="绘制" Style="{StaticResource AccentButtonStyle}" Click="OnPlotClick"/>
+                                <Button Content="清除" Click="OnPlotClearClick"/>
+                                <Button Content="重置视图" Click="OnResetViewClick"/>
+                                <CheckBox x:Name="DerivToggle" Content="同时绘制导数 f′(x)" Click="OnGridToggleClick"/>
+                                <CheckBox x:Name="GridToggle" Content="网格" IsChecked="True" Click="OnGridToggleClick"/>
+                                <ToggleButton x:Name="PanToggle" Content="滚轮居中缩放" Click="OnPanToggleClick"
+                                              ToolTipService.ToolTip="开启后：滚轮以绘图区中心缩放；关闭后：滚轮围绕鼠标位置缩放。左键拖动红点取点，拖动其他位置平移图像（左右+上下）"/>
+                            </StackPanel>
+                        </ScrollViewer>
+
+                        <!-- LaTeX 快捷模板（插入到绘图表达式框，所见即所得预览） -->
+                        <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled"
+                                      HorizontalScrollMode="Enabled" VerticalScrollMode="Disabled">
+                            <StackPanel Orientation="Horizontal" Spacing="4">
+                                <TextBlock Text="LaTeX 模板" VerticalAlignment="Center" Opacity="0.8"/>
+                                <Button Content="分数" Tag="frac" Click="OnPlotKeypadClick"/>
+                                <Button Content="√" Tag="sqrt" Click="OnPlotKeypadClick"/>
+                                <Button Content="ⁿ√" Tag="rootn" Click="OnPlotKeypadClick"/>
+                                <Button Content="x²" Tag="pow" Click="OnPlotKeypadClick"/>
+                                <Button Content="π" Tag="pi" Click="OnPlotKeypadClick"/>
+                                <Button Content="eˣ" Tag="exp" Click="OnPlotKeypadClick"/>
+                                <Button Content="sin" Tag="sin(" Click="OnPlotKeypadClick"/>
+                                <Button Content="cos" Tag="cos(" Click="OnPlotKeypadClick"/>
+                                <Button Content="tan" Tag="tan(" Click="OnPlotKeypadClick"/>
+                                <Button Content="ln" Tag="ln(" Click="OnPlotKeypadClick"/>
+                                <Button Content="log" Tag="log(" Click="OnPlotKeypadClick"/>
+                                <Button Content="|x|" Tag="abs(" Click="OnPlotKeypadClick"/>
+                                <Button Content="∛" Tag="root3" Click="OnPlotKeypadClick"/>
+                            </StackPanel>
+                        </ScrollViewer>
+
+                        <!-- 二维排版预览：所见即所得（真分数、根号带上划线、上下标），空的 {} 可点击后输入 -->
+                        <Border Background="{ThemeResource LayerFillColorDefaultBrush}" CornerRadius="6" Padding="10,6">
+                            <Grid x:Name="PlotTypesetHost" MinHeight="30"/>
+                        </Border>
+                    </StackPanel>
+                </Border>
+            </StackPanel>
+        </ScrollViewer>
+
+        <TextBlock x:Name="StatusText" Grid.Row="2" FontSize="12" Opacity="0.85" TextWrapping="Wrap"
+                   Text="提示：LaTeX 与普通写法都支持（\frac{1}{2} = 1/2，x^{2} = x^2）。AI 解析题目需先在「设置 → 右侧栏AI辅助」配置提供商与 API-Key。"/>
+    </Grid>
+</Page>

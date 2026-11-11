@@ -1,0 +1,361 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>EPUB 阅读器</title>
+<!--
+  EPUB 阅读器页面（基于开源 epub.js + JSZip，本地 lib\ 加载完全离线；本地 ArrayBuffer 打开，无任何远程书源）
+  ============ 宿主 ↔ JS 消息协议（window.chrome.webview.postMessage）============
+  JS → 宿主：
+    { type: "ready" }                                页面脚本就绪（可接收 open）
+    { type: "error", message: string }               错误上报
+    { type: "toc",   items: [{ label, href }] }      目录（扁平化、含层级缩进）
+    { type: "page",  current: number, total: number }当前页码 / 总页数（relocated 事件）
+  宿主 → JS（PostWebMessageAsJson）：
+    { cmd: "openBegin" }                                 开始分块传输（清空已收块）
+    { cmd: "openChunk", index: n, data: "<base64片段>" }  第 n 块 base64（宿主按 3 字节对齐切块，可安全拼接）
+    { cmd: "openEnd" }                                   分块结束 → 拼接 → atob → ArrayBuffer → ePub(buffer)
+    { cmd: "open",  dataBase64: string }                 兼容旧通道：一次性 base64(.epub 字节)
+    { cmd: "next" } / { cmd: "prev" }                翻页（RTL 书目自动反转）
+    { cmd: "goto",  href: string }                   跳转目录章节
+    { cmd: "font",  delta: -1 | 1 }                  字号 -/+（60% ~ 260%，步进 10%）
+    { cmd: "theme", dark: true | false }             夜间 / 日间主题
+-->
+<script src="lib/jszip.min.js"></script>
+<script src="lib/epub.min.js"></script>
+<style>
+  html, body {
+    margin: 0; padding: 0; height: 100%; overflow: hidden;
+    background: #ffffff; color: #1a1a1a;
+    font-family: "Segoe UI", "Microsoft YaHei", sans-serif;
+    transition: background .2s ease, color .2s ease;
+  }
+  body.dark { background: #1f1f1f; color: #d6d6d6; }
+
+  /* 顶栏 */
+  #toolbar {
+    position: absolute; top: 0; left: 0; right: 0; height: 44px;
+    display: flex; align-items: center; gap: 8px;
+    padding: 0 12px; box-sizing: border-box;
+    border-bottom: 1px solid rgba(128,128,128,.25);
+    user-select: none;
+  }
+  body.dark #toolbar { border-bottom-color: rgba(255,255,255,.15); }
+  #toolbar button {
+    padding: 4px 12px; cursor: pointer;
+    background: transparent; color: inherit;
+    border: 1px solid rgba(128,128,128,.4); border-radius: 4px;
+  }
+  #toolbar button:hover { border-color: rgba(128,128,128,.8); }
+  #toolbar .spacer { flex: 1; }
+  #pageInfo { min-width: 90px; text-align: center; opacity: .8; font-size: 13px; }
+
+  /* 阅读区 */
+  #viewer { position: absolute; top: 45px; left: 0; right: 0; bottom: 0; }
+  #placeholder {
+    position: absolute; inset: 0;
+    display: flex; align-items: center; justify-content: center;
+    color: rgba(128,128,128,.9); font-size: 15px;
+    text-align: center; padding: 0 24px;
+  }
+  #fileInput { display: none; }
+</style>
+</head>
+<body>
+  <div id="toolbar">
+    <button id="btnOpen" title="打开本地 EPUB 文件">📂 打开文件</button>
+    <button id="btnPrev" title="上一页（←）">◀ 上一页</button>
+    <span id="pageInfo">– / –</span>
+    <button id="btnNext" title="下一页（→）">下一页 ▶</button>
+    <button id="btnToc" title="把目录发送给宿主窗口">目录</button>
+    <span class="spacer"></span>
+    <button id="btnFontMinus" title="减小字号">A-</button>
+    <button id="btnFontPlus" title="增大字号">A+</button>
+    <button id="btnTheme" title="切换夜间 / 日间模式">夜间模式</button>
+  </div>
+
+  <div id="viewer">
+    <div id="placeholder">点击「打开文件」选择本地 .epub，或将其拖入应用窗口开始阅读</div>
+  </div>
+  <input type="file" id="fileInput" accept=".epub,application/epub+zip">
+
+<script>
+(function () {
+  "use strict";
+
+  var viewer     = document.getElementById("viewer");
+  var placeholder= document.getElementById("placeholder");
+  var pageInfo   = document.getElementById("pageInfo");
+  var btnTheme   = document.getElementById("btnTheme");
+  var fileInput  = document.getElementById("fileInput");
+
+  var book = null;
+  var rendition = null;
+  var dark = false;
+  var fontSize = 100;                       // 百分比字号
+  var FONT_STEP = 10, FONT_MIN = 60, FONT_MAX = 260;
+  var lastToc = [];                         // 最近一次解析出的目录
+  var themesRegistered = false;             // 当前 rendition 是否已注册主题（避免重复 register）
+  var chunks = [];                          // 宿主分块传输的 base64 片段（按 index 存放）
+
+  var host = (window.chrome && window.chrome.webview) ? window.chrome.webview : null;
+  function post(msg) {
+    if (host) { try { host.postMessage(msg); } catch (e) { /* 宿主不可达时忽略 */ } }
+  }
+  function reportError(err) {
+    var msg;
+    if (err && err.message) {
+      msg = err.message;                                    // Error 对象取 message
+    } else if (typeof err === "string") {
+      msg = err;
+    } else if (err && typeof err.toString === "function" && err.toString() !== "[object Object]") {
+      msg = err.toString();
+    } else if (err) {
+      try { msg = JSON.stringify(err); } catch (e2) { msg = String(err); }
+    }
+    // 保底：绝不让宿主只看到 "[object Object]"
+    if (!msg || msg === "{}" || msg === "[object Object]") { msg = "未知错误（无详细信息）"; }
+    post({ type: "error", message: msg });
+  }
+
+  /* 渲染容器尺寸：为 0 时回退到窗口尺寸，避免 epub.js 按 0 宽高排版导致 display 失败 */
+  function viewerSize() {
+    return {
+      width:  viewer.clientWidth  || window.innerWidth  || 800,
+      height: viewer.clientHeight || window.innerHeight || 600
+    };
+  }
+
+  /* ---------- 目录 ---------- */
+  function flattenToc(toc, out, depth) {
+    (toc || []).forEach(function (item) {
+      var label = (item && (item.label || item.title)) || "未命名";
+      var pad = depth > 0 ? new Array(depth + 1).join("　") : "";
+      out.push({ label: pad + label, href: (item && item.href) || "" });
+      if (item && item.subitems && item.subitems.length) {
+        flattenToc(item.subitems, out, depth + 1);
+      }
+    });
+  }
+
+  /* ---------- 打开 / 渲染 ---------- */
+  function openBuffer(buffer) {
+    try {
+      if (rendition) { try { rendition.destroy(); } catch (e) { } rendition = null; }
+      if (book)      { try { book.destroy(); }       catch (e) { } book = null; }
+      viewer.innerHTML = "";
+      placeholder.style.display = "none";
+      lastToc = [];
+
+      // 清空后容器可能还没有非零尺寸（尚未布局），用窗口尺寸兜底传入 width/height，
+      // 否则 epub.js 会按 0 宽高排版 → display 失败（"解析失败"的诱因之一）
+      var size = viewerSize();
+
+      book = ePub(buffer);
+      rendition = book.renderTo(viewer, {
+        width: size.width,
+        height: size.height,
+        flow: "paginated",
+        spread: "auto"
+      });
+      rendition.on("relocated", onRelocated);
+      themesRegistered = false;   // 新 rendition 的 themes 实例需要重新注册一次
+      applyTheme();
+      applyFontSize();
+
+      // epub.js 在 book.ready 之前调用 display() 会因 spine 未加载而 reject（"No Section Found"），
+      // 必须等书 ready 后再显示
+      var current = rendition;
+      book.ready.then(function () {
+        if (current !== rendition) { return; }   // 已被新书替换，忽略
+        return rendition.display();
+      }).catch(reportError);
+
+      book.loaded.navigation.then(function (nav) {
+        try {
+          lastToc = [];
+          flattenToc(nav.toc, lastToc, 0);
+          post({ type: "toc", items: lastToc });
+        } catch (e) { reportError(e); }
+      }).catch(function () { post({ type: "toc", items: [] }); });
+
+      book.ready.then(function () {
+        try {
+          var md = book.package && book.package.metadata;
+          if (md && md.title) { document.title = "EPUB 阅读器 - " + md.title; }
+        } catch (e) { /* 元数据缺失时忽略 */ }
+      }).catch(function () { });
+    } catch (e) {
+      reportError(e);
+    }
+  }
+
+  /* 本地 .epub → FileReader.readAsArrayBuffer → ePub(buffer)（与宿主 base64 通道等价的页内入口） */
+  fileInput.addEventListener("change", function (e) {
+    var file = e.target.files && e.target.files[0];
+    if (!file) { return; }
+    if (!/\.epub$/i.test(file.name)) {
+      reportError("请选择 .epub 文件");
+      return;
+    }
+    var reader = new FileReader();
+    reader.onload = function () { openBuffer(reader.result); };
+    reader.onerror = function () { reportError("读取文件失败"); };
+    reader.readAsArrayBuffer(file);
+    fileInput.value = "";
+  });
+
+  function openBase64(b64) {
+    if (!b64) { reportError("收到空的 EPUB 数据"); return; }
+    try {
+      var bin = atob(b64);
+      var bytes = new Uint8Array(bin.length);
+      for (var i = 0; i < bin.length; i++) { bytes[i] = bin.charCodeAt(i); }
+      if (bytes.length === 0) { reportError("EPUB 数据解码后长度为 0"); return; }
+      openBuffer(bytes.buffer);
+    } catch (e) {
+      reportError(e);
+    }
+  }
+
+  /* ---------- 宿主分块传输（大 .epub 一次性 postMessage 会失败 / 截断） ---------- */
+  function beginChunks() {
+    chunks = [];
+  }
+  function appendChunk(index, data) {
+    if (typeof index !== "number" || index < 0 || typeof data !== "string") { return; }
+    chunks[index] = data;
+  }
+  function endChunks() {
+    var parts = chunks;
+    chunks = [];
+    if (!parts.length) { reportError("未收到 EPUB 数据块（传输可能已中断）"); return; }
+    for (var i = 0; i < parts.length; i++) {
+      if (typeof parts[i] !== "string" || parts[i].length === 0) {
+        reportError("EPUB 数据块不完整（缺少第 " + (i + 1) + " 块）");
+        return;
+      }
+    }
+    openBase64(parts.join(""));
+  }
+
+  /* ---------- 翻页（RTL 书目左右反转） ---------- */
+  function isRtl() {
+    try {
+      return !!(book && book.package && book.package.metadata &&
+                book.package.metadata.direction === "rtl");
+    } catch (e) { return false; }
+  }
+  function turnPrev() { if (rendition) { isRtl() ? rendition.next() : rendition.prev(); } }
+  function turnNext() { if (rendition) { isRtl() ? rendition.prev() : rendition.next(); } }
+
+  function onRelocated(location) {
+    try {
+      var d = (location && location.start && location.start.displayed) || { page: 0, total: 0 };
+      pageInfo.textContent = d.page + " / " + d.total;
+      post({ type: "page", current: d.page, total: d.total });
+    } catch (e) { /* 页码事件失败可忽略 */ }
+  }
+
+  /* ---------- 字号 / 主题 ---------- */
+  function applyFontSize() {
+    if (rendition) { rendition.themes.fontSize(fontSize + "%"); }
+  }
+  function changeFont(delta) {
+    fontSize = Math.min(FONT_MAX, Math.max(FONT_MIN, fontSize + (delta > 0 ? FONT_STEP : -FONT_STEP)));
+    applyFontSize();
+  }
+  function applyTheme() {
+    if (!rendition) { return; }
+    // 主题样式只需在当前 rendition 上注册一次，之后 setTheme 仅做 select
+    if (!themesRegistered) {
+      rendition.themes.register("epub-light", {
+        body: { "background": "#ffffff !important", "color": "#1a1a1a !important" }
+      });
+      rendition.themes.register("epub-dark", {
+        "html": { "background": "#1f1f1f !important" },
+        "body": { "background": "#1f1f1f !important", "color": "#d6d6d6 !important" },
+        "a":    { "color": "#8ab4f8 !important" },
+        "img, svg": { "filter": "brightness(0.85)" }
+      });
+      themesRegistered = true;
+    }
+    rendition.themes.select(dark ? "epub-dark" : "epub-light");
+  }
+  function setTheme(value) {
+    dark = !!value;
+    document.body.classList.toggle("dark", dark);
+    btnTheme.textContent = dark ? "日间模式" : "夜间模式";
+    applyTheme();
+  }
+
+  /* ---------- 尺寸自适应 ---------- */
+  var resizeTimer = 0;
+  window.addEventListener("resize", function () {
+    if (!rendition) { return; }
+    window.clearTimeout(resizeTimer);
+    resizeTimer = window.setTimeout(function () {
+      var size = viewerSize();
+      rendition.resize(size.width, size.height);
+    }, 150);
+  });
+
+  /* ---------- 键盘 ← → 翻页 ---------- */
+  document.addEventListener("keyup", function (e) {
+    if (e.key === "ArrowLeft")  { turnPrev(); }
+    else if (e.key === "ArrowRight") { turnNext(); }
+  });
+
+  /* ---------- 顶栏按钮 ---------- */
+  document.getElementById("btnOpen").addEventListener("click", function () { fileInput.click(); });
+  document.getElementById("btnPrev").addEventListener("click", turnPrev);
+  document.getElementById("btnNext").addEventListener("click", turnNext);
+  document.getElementById("btnToc").addEventListener("click", function () {
+    if (!book) { reportError("尚未打开书籍"); return; }
+    post({ type: "toc", items: lastToc });
+  });
+  document.getElementById("btnFontMinus").addEventListener("click", function () { changeFont(-1); });
+  document.getElementById("btnFontPlus").addEventListener("click", function () { changeFont(1); });
+  btnTheme.addEventListener("click", function () { setTheme(!dark); });
+
+  /* ---------- 宿主指令 ---------- */
+  if (host) {
+    host.addEventListener("message", function (event) {
+      var data = event.data;
+      if (!data || typeof data !== "object") { return; }
+      switch (data.cmd) {
+        case "openBegin": beginChunks(); break;
+        case "openChunk": appendChunk(data.index, data.data); break;
+        case "openEnd":   endChunks(); break;
+        case "open":  openBase64(data.dataBase64); break;
+        case "next":  turnNext(); break;
+        case "prev":  turnPrev(); break;
+        case "goto":
+          if (rendition && data.href) { rendition.display(data.href).catch(reportError); }
+          break;
+        case "font":  changeFont(data.delta); break;
+        case "theme": setTheme(data.dark); break;
+      }
+    });
+  }
+
+  /* ---------- 就绪 / 依赖检查 ---------- */
+  // 仅当 epub.js 与 JSZip 都存在时才通知宿主 ready；缺失时只报错（绝不 ready），
+  // 否则宿主会在错误状态后又把阅读器置为就绪，导致状态错乱
+  var missing = [];
+  if (typeof window.ePub === "undefined")  { missing.push("epub.js（lib/epub.min.js）"); }
+  if (typeof window.JSZip === "undefined") { missing.push("JSZip（lib/jszip.min.js）"); }
+  if (missing.length > 0) {
+    reportError("本地脚本加载失败：缺少 " + missing.join("、") + "，请确认 Assets/Web/lib 下的脚本存在且为可用的 UMD 构建");
+  } else {
+    post({ type: "ready" });
+  }
+
+  window.addEventListener("error", function (e) {
+    if (e && e.message) { reportError(e.message); }
+  });
+})();
+</script>
+</body>
+</html>

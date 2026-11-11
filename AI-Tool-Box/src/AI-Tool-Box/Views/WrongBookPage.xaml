@@ -1,0 +1,216 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Page
+    x:Class="AI_Tool_Box.Views.WrongBookPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <Grid Padding="16,12" RowSpacing="10"
+          Background="{ThemeResource ApplicationPageBackgroundThemeBrush}">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <StackPanel Grid.Row="0" Orientation="Horizontal" Spacing="12">
+            <TextBlock Text="错题本" FontSize="24" FontWeight="Bold" VerticalAlignment="Center"/>
+            <TextBlock Text="（本地保存，支持检索/标签/掌握标记，AI 出题与讲解）" Opacity="0.8" VerticalAlignment="Center"/>
+        </StackPanel>
+
+        <Grid Grid.Row="1" ColumnSpacing="10">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="360"/>
+                <ColumnDefinition Width="*"/>
+            </Grid.ColumnDefinitions>
+
+            <!-- 列表 -->
+            <Border Grid.Column="0"
+                    Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                    BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                    BorderThickness="1" CornerRadius="8" Padding="12">
+                <Grid RowSpacing="8">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+
+                    <TextBlock Grid.Row="0" Text="题目列表" FontWeight="SemiBold"/>
+
+                    <Grid Grid.Row="1" ColumnSpacing="6">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="110"/>
+                        </Grid.ColumnDefinitions>
+                        <TextBox Grid.Column="0" x:Name="SearchBox" PlaceholderText="搜索题干 / 标签"
+                                 TextChanged="OnSearchChanged"/>
+                        <ComboBox Grid.Column="1" x:Name="SubjectFilter" SelectedIndex="0"
+                                  SelectionChanged="OnFilterChanged">
+                            <x:String>全部科目</x:String>
+                            <x:String>数学</x:String>
+                            <x:String>物理</x:String>
+                            <x:String>化学</x:String>
+                            <x:String>生物</x:String>
+                            <x:String>英语</x:String>
+                            <x:String>语文</x:String>
+                            <x:String>其他</x:String>
+                        </ComboBox>
+                    </Grid>
+
+                    <ListView Grid.Row="2" x:Name="QuestionList" SelectionMode="Single"
+                              SelectionChanged="OnSelectionChanged">
+                        <ListView.ItemTemplate>
+                            <DataTemplate>
+                                <TextBlock Text="{Binding Display}" TextWrapping="Wrap" MaxLines="2"/>
+                            </DataTemplate>
+                        </ListView.ItemTemplate>
+                    </ListView>
+
+                    <StackPanel Grid.Row="3" Spacing="6">
+                        <StackPanel Orientation="Horizontal" Spacing="6">
+                            <Button Content="新建" Style="{StaticResource AccentButtonStyle}" Click="OnNewClick"/>
+                            <Button Content="删除" Click="OnDeleteClick"/>
+                            <Button Content="标记已掌握" Click="OnToggleMasteredClick"/>
+                            <Button Content="+1 复习" Click="OnReviewClick"/>
+                        </StackPanel>
+                        <StackPanel Orientation="Horizontal" Spacing="6">
+                            <Button Content="导入 JSON…" Click="OnImportClick"/>
+                            <Button Content="导出 JSON…" Click="OnExportClick"/>
+                            <Button Content="导出为 PDF…" Click="OnExportPdfClick"/>
+                        </StackPanel>
+                    </StackPanel>
+                </Grid>
+            </Border>
+
+            <!-- 编辑 -->
+            <Border Grid.Column="1"
+                    Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                    BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                    BorderThickness="1" CornerRadius="8" Padding="12">
+                <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                    <StackPanel Spacing="8">
+                        <Grid ColumnSpacing="6">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="140"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <ComboBox Grid.Column="0" x:Name="SubjectBox" Header="科目" SelectedIndex="1">
+                                <x:String>未分类</x:String>
+                                <x:String>数学</x:String>
+                                <x:String>物理</x:String>
+                                <x:String>化学</x:String>
+                                <x:String>生物</x:String>
+                                <x:String>英语</x:String>
+                                <x:String>语文</x:String>
+                                <x:String>其他</x:String>
+                            </ComboBox>
+                            <TextBox Grid.Column="1" x:Name="TagsBox" Header="标签（逗号分隔）"
+                                     PlaceholderText="如：三角函数,易错"/>
+                        </Grid>
+
+                        <StackPanel Spacing="4">
+                            <TextBlock Text="题干" FontWeight="SemiBold"/>
+                            <TextBox x:Name="QuestionBox" AcceptsReturn="True" TextWrapping="Wrap"
+                                     Height="120" ScrollViewer.VerticalScrollBarVisibility="Auto"
+                                     PlaceholderText="粘贴或输入题目（支持换行）"/>
+                            <!-- 题目图片（PDF/图片裁剪后的缩略图） -->
+                            <Border x:Name="QuestionImagePanel" Visibility="Collapsed"
+                                    Background="{ThemeResource CardBackgroundFillColorSecondaryBrush}"
+                                    BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                                    BorderThickness="1" CornerRadius="6" Padding="8">
+                                <StackPanel Spacing="6">
+                                    <StackPanel Orientation="Horizontal" Spacing="8">
+                                        <TextBlock Text="题目图片（缩略图）" FontWeight="SemiBold" FontSize="12"
+                                                   VerticalAlignment="Center"/>
+                                        <Button Content="移除图片" FontSize="12" Padding="8,2"
+                                                Click="OnRemoveQuestionImageClick"/>
+                                    </StackPanel>
+                                    <ScrollViewer MaxHeight="260" HorizontalScrollBarVisibility="Auto"
+                                                  VerticalScrollBarVisibility="Auto">
+                                        <Image x:Name="QuestionImage" Stretch="Uniform"
+                                               HorizontalAlignment="Left"/>
+                                    </ScrollViewer>
+                                </StackPanel>
+                            </Border>
+                        </StackPanel>
+
+                        <StackPanel Spacing="4">
+                            <TextBlock Text="答案" FontWeight="SemiBold"/>
+                            <TextBox x:Name="AnswerBox" AcceptsReturn="True" TextWrapping="Wrap"
+                                     Height="80" ScrollViewer.VerticalScrollBarVisibility="Auto"/>
+                            <!-- 答案图片 -->
+                            <Border x:Name="AnswerImagePanel" Visibility="Collapsed"
+                                    Background="{ThemeResource CardBackgroundFillColorSecondaryBrush}"
+                                    BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                                    BorderThickness="1" CornerRadius="6" Padding="8">
+                                <StackPanel Spacing="6">
+                                    <StackPanel Orientation="Horizontal" Spacing="8">
+                                        <TextBlock Text="答案图片" FontWeight="SemiBold" FontSize="12"
+                                                   VerticalAlignment="Center"/>
+                                        <Button Content="移除图片" FontSize="12" Padding="8,2"
+                                                Click="OnRemoveAnswerImageClick"/>
+                                    </StackPanel>
+                                    <ScrollViewer MaxHeight="260" HorizontalScrollBarVisibility="Auto"
+                                                  VerticalScrollBarVisibility="Auto">
+                                        <Image x:Name="AnswerImage" Stretch="Uniform"
+                                               HorizontalAlignment="Left"/>
+                                    </ScrollViewer>
+                                </StackPanel>
+                            </Border>
+                        </StackPanel>
+
+                        <StackPanel Spacing="4">
+                            <TextBlock Text="解析 / 错因" FontWeight="SemiBold"/>
+                            <TextBox x:Name="AnalysisBox" AcceptsReturn="True" TextWrapping="Wrap"
+                                     Height="100" ScrollViewer.VerticalScrollBarVisibility="Auto"/>
+                        </StackPanel>
+
+                        <!-- DOCX/网页选中内容（HTML 片段，可能含图片） -->
+                        <Border x:Name="HtmlPanel" Visibility="Collapsed"
+                                Background="{ThemeResource CardBackgroundFillColorSecondaryBrush}"
+                                BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                                BorderThickness="1" CornerRadius="6" Padding="8">
+                            <StackPanel Spacing="4">
+                                <TextBlock Text="题目片段（HTML）" FontWeight="SemiBold" FontSize="12"/>
+                                <WebView2 x:Name="HtmlPreview" Height="200"/>
+                            </StackPanel>
+                        </Border>
+
+                        <StackPanel Spacing="6">
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                <Button Content="保存" Style="{StaticResource AccentButtonStyle}" Click="OnSaveClick"/>
+                                <Button Content="导入文件（PDF/DOCX/图片）…" Click="OnImportFileClick"/>
+                                <Button Content="图片识别录入…" Click="OnOcrImportClick"/>
+                                <Button Content="AI 拆分题干/答案" Click="OnAiSplitClick"/>
+                                <ProgressRing x:Name="BusyRing" IsActive="False" Width="20" Height="20"/>
+                            </StackPanel>
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                <Button Content="AI 生成同类题" Click="OnAiGenerateClick"/>
+                                <Button Content="AI 讲解" Click="OnAiExplainClick"/>
+                            </StackPanel>
+                        </StackPanel>
+                    </StackPanel>
+                </ScrollViewer>
+            </Border>
+        </Grid>
+
+        <TextBlock x:Name="StatusText" Grid.Row="2" FontSize="12" Opacity="0.85" TextWrapping="Wrap"
+                   Text="数据保存在 %LOCALAPPDATA%\AI-Tool-Box\wrongbook.json，卸载前请自行备份。"/>
+
+        <!-- 隐藏 WebView2 工具页：PDF 工具（裁剪单页 / 图片转 PDF / 合并） -->
+        <WebView2 x:Name="PdfToolWeb"
+                  Grid.Row="1"
+                  Width="1" Height="1"
+                  Opacity="0"
+                  IsHitTestVisible="False"
+                  Visibility="Collapsed"/>
+        <!-- 隐藏 WebView2：HTML/文本 → PDF 打印 -->
+        <WebView2 x:Name="HtmlWeb"
+                  Grid.Row="1"
+                  Width="1" Height="1"
+                  Opacity="0"
+                  IsHitTestVisible="False"
+                  Visibility="Collapsed"/>
+    </Grid>
+</Page>

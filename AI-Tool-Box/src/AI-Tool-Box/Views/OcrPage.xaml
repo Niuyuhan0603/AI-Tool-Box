@@ -1,0 +1,203 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Page
+    x:Class="AI_Tool_Box.Views.OcrPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:vm="using:AI_Tool_Box.ViewModels"
+    xmlns:controls="using:Microsoft.UI.Xaml.Controls">
+
+    <Grid Padding="16" RowSpacing="12" Background="{ThemeResource ApplicationPageBackgroundThemeBrush}">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <!-- Row 0: 操作栏（窗口过窄时可横向滚动，保证所有按钮可见） -->
+        <ScrollViewer Grid.Row="0"
+                      HorizontalScrollBarVisibility="Auto"
+                      HorizontalScrollMode="Enabled"
+                      VerticalScrollBarVisibility="Disabled"
+                      VerticalScrollMode="Disabled">
+            <StackPanel Orientation="Horizontal" Spacing="12" VerticalAlignment="Center">
+                <Button Content="选择图片…"
+                        Click="OnPickImageClick"
+                        IsEnabled="{x:Bind ViewModel.IsNotBusy, Mode=OneWay}"/>
+                <Button Content="识别 PDF…"
+                        Click="OnRecognizePdfClick"
+                        IsEnabled="{x:Bind ViewModel.IsNotBusy, Mode=OneWay}"
+                        ToolTipService.ToolTip="选择 PDF 文件并使用 LiteParse2.0 提取全文文字"/>
+
+                <TextBlock Text="识别语言：" VerticalAlignment="Center"/>
+                <ComboBox x:Name="LangBox"
+                          Width="330"
+                          PlaceholderText="加载中…（LiteParse2.0 引擎，固定 11 种常用语言：联合国 6 种工作语言 + 日/韩/德/葡）"
+                          ItemsSource="{x:Bind ViewModel.AvailableLanguages, Mode=OneWay}"
+                          SelectedItem="{x:Bind ViewModel.SelectedLanguage, Mode=TwoWay}"
+                          DisplayMemberPath="DisplayName">
+                    <ComboBox.ItemContainerStyle>
+                        <Style TargetType="ComboBoxItem">
+                            <Setter Property="IsEnabled" Value="True"/>
+                            <Setter Property="ToolTipService.ToolTip">
+                                <Setter.Value>
+                                    <Binding Path="Category"/>
+                                </Setter.Value>
+                            </Setter>
+                        </Style>
+                    </ComboBox.ItemContainerStyle>
+                </ComboBox>
+                <Button Content="刷新语言"
+                        Command="{x:Bind ViewModel.LoadLanguagesCommand}"
+                        IsEnabled="{x:Bind ViewModel.IsNotBusy, Mode=OneWay}"/>
+
+                <Button Content="开始识别"
+                        Style="{StaticResource AccentButtonStyle}"
+                        Command="{x:Bind ViewModel.RecognizeCommand}"/>
+                <Button Content="带格式识别"
+                        Command="{x:Bind ViewModel.RecognizeFormattedCommand}"
+                        ToolTipService.ToolTip="按字符坐标还原空格与缩进，适合文字清晰的截图 / 电脑界面截图 / 代码截图"/>
+
+                <TextBlock Text="代码语言：" VerticalAlignment="Center"/>
+                <ComboBox x:Name="StyleBox"
+                          Width="300"
+                          ItemsSource="{x:Bind ViewModel.CodeStyles, Mode=OneWay}"
+                          SelectedItem="{x:Bind ViewModel.SelectedCodeStyle, Mode=TwoWay}"
+                          DisplayMemberPath="Name"
+                          ToolTipService.ToolTip="代码识别模式：按所选语言的最小缩进单元对齐缩进；普通文本模式按原样还原空格"/>
+
+                <Button Content="复制结果"
+                        Command="{x:Bind ViewModel.CopyResultCommand}"/>
+                <Button Content="注入当前网页焦点框"
+                        Command="{x:Bind ViewModel.InjectToWebCommand}"/>
+                <ProgressRing Width="24" Height="24"
+                              Visibility="{x:Bind ViewModel.IsBusy, Mode=OneWay}"
+                              IsActive="{x:Bind ViewModel.IsBusy, Mode=OneWay}"
+                              VerticalAlignment="Center"/>
+            </StackPanel>
+        </ScrollViewer>
+
+        <!-- Row 1: 左预览 + 右结果 -->
+        <Grid Grid.Row="1" ColumnSpacing="12">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="*"/>
+            </Grid.ColumnDefinitions>
+
+            <!-- 左：图片预览 + 路径 -->
+            <Grid Grid.Column="0" RowSpacing="8">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="*"/>
+                    <RowDefinition Height="Auto"/>
+                </Grid.RowDefinitions>
+
+                <TextBlock Grid.Row="0" Text="{x:Bind ViewModel.SourceTitle, Mode=OneWay}" Style="{StaticResource SubtitleTextBlockStyle}"/>
+
+                <Border Grid.Row="1"
+                        Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                        BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                        BorderThickness="1"
+                        CornerRadius="8"
+                        Padding="8">
+                    <Grid>
+                        <!-- 图片预览（选择图片时显示） -->
+                        <Image Source="{x:Bind ViewModel.PreviewImage, Mode=OneWay}"
+                               Stretch="Uniform"
+                               HorizontalAlignment="Center"
+                               VerticalAlignment="Center"/>
+
+                        <!-- PDF 多页预览（选择 .pdf 时显示：可翻页 / 缩放 / 适应宽度 / 逐页识别） -->
+                        <Grid Visibility="{x:Bind ViewModel.IsPdf, Mode=OneWay}">
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="*"/>
+                            </Grid.RowDefinitions>
+
+                            <ScrollViewer Grid.Row="0"
+                                          Margin="0,0,0,6"
+                                          HorizontalScrollBarVisibility="Auto"
+                                          HorizontalScrollMode="Enabled"
+                                          VerticalScrollBarVisibility="Disabled"
+                                          VerticalScrollMode="Disabled">
+                                <StackPanel Orientation="Horizontal" Spacing="6">
+                                    <Button Content="◀" ToolTipService.ToolTip="上一页"
+                                            Click="OnPdfPrevClick"
+                                            IsEnabled="{x:Bind ViewModel.IsNotBusy, Mode=OneWay}"/>
+                                    <TextBlock x:Name="PdfPageIndicator"
+                                               Text="– / –"
+                                               MinWidth="70"
+                                               TextAlignment="Center"
+                                               VerticalAlignment="Center"
+                                               Foreground="{ThemeResource SystemControlPageTextBaseMediumBrush}"/>
+                                    <Button Content="▶" ToolTipService.ToolTip="下一页"
+                                            Click="OnPdfNextClick"
+                                            IsEnabled="{x:Bind ViewModel.IsNotBusy, Mode=OneWay}"/>
+                                    <Rectangle Width="1" Height="24"
+                                               Fill="{ThemeResource DividerStrokeColorDefaultBrush}"
+                                               VerticalAlignment="Center"/>
+                                    <Button Content="＋" ToolTipService.ToolTip="放大" Padding="10,4" Click="OnPdfZoomInClick"/>
+                                    <Button Content="－" ToolTipService.ToolTip="缩小" Padding="10,4" Click="OnPdfZoomOutClick"/>
+                                    <Button Content="适应宽度" ToolTipService.ToolTip="页面适应窗口宽度" Click="OnPdfFitWidthClick"/>
+                                    <Rectangle Width="1" Height="24"
+                                               Fill="{ThemeResource DividerStrokeColorDefaultBrush}"
+                                               VerticalAlignment="Center"/>
+                                    <Button Content="识别当前页"
+                                            ToolTipService.ToolTip="仅识别当前预览页（按页面图片走 OCR 管线）"
+                                            Click="OnRecognizeCurrentPageClick"
+                                            IsEnabled="{x:Bind ViewModel.IsNotBusy, Mode=OneWay}"/>
+                                </StackPanel>
+                            </ScrollViewer>
+
+                            <ScrollViewer Grid.Row="1"
+                                          x:Name="PdfScroller"
+                                          HorizontalScrollBarVisibility="Auto"
+                                          VerticalScrollBarVisibility="Auto"
+                                          ZoomMode="Disabled">
+                                <Image x:Name="PdfPageImage" Stretch="Fill"/>
+                            </ScrollViewer>
+                        </Grid>
+
+                        <TextBlock Text="未选择文件，点击左上角“选择图片…”或“识别 PDF…”打开本地文件。"
+                                   HorizontalAlignment="Center"
+                                   VerticalAlignment="Center"
+                                   Foreground="{ThemeResource SystemControlPageTextBaseMediumBrush}"
+                                   TextAlignment="Center"
+                                   Visibility="{x:Bind ViewModel.NoFilePlaceholderVisibility, Mode=OneWay}"/>
+                    </Grid>
+                </Border>
+
+                <TextBlock Grid.Row="2"
+                           Text="{x:Bind ViewModel.SourceFilePath, Mode=OneWay}"
+                           TextTrimming="CharacterEllipsis"
+                           FontSize="12"
+                           Foreground="{ThemeResource SystemControlPageTextBaseMediumBrush}"/>
+            </Grid>
+
+            <!-- 右：识别结果 -->
+            <Grid Grid.Column="1" RowSpacing="8">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="*"/>
+                </Grid.RowDefinitions>
+
+                <TextBlock Grid.Row="0" Text="识别结果" Style="{StaticResource SubtitleTextBlockStyle}"/>
+
+                <TextBox Grid.Row="1"
+                         Text="{x:Bind ViewModel.ResultText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                         AcceptsReturn="True"
+                         TextWrapping="Wrap"
+                         PlaceholderText="点击“开始识别”后，识别结果显示于此，可手动编辑。"
+                         VerticalAlignment="Stretch"
+                         HorizontalAlignment="Stretch"
+                         ScrollViewer.VerticalScrollBarVisibility="Auto"
+                         FontFamily="Consolas"/>
+            </Grid>
+        </Grid>
+
+        <!-- Row 2: 状态栏 -->
+        <TextBlock Grid.Row="2"
+                   Text="{x:Bind ViewModel.Status, Mode=OneWay}"
+                   Foreground="{ThemeResource SystemControlPageTextBaseMediumBrush}"
+                   TextTrimming="CharacterEllipsis"/>
+    </Grid>
+</Page>

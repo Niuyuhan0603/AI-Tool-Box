@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>欢迎动画</title>
+<style>
+  html, body { margin: 0; padding: 0; height: 100%; overflow: hidden; background: transparent; }
+  #c { display: block; width: 100%; height: 100%; }
+  /* SiderFusion 徽标：蜂巢中心淡入 + 轻微浮动/呼吸动画 */
+  #siderLogo {
+    position: absolute; left: 50%; top: 50%;
+    width: 64px; height: 64px;
+    transform: translate(-50%, -50%);
+    opacity: 0; pointer-events: none;
+    transition: opacity 0.6s ease;
+    filter: drop-shadow(0 0 10px rgba(23, 162, 184, 0.55));
+    animation: siderFloat 3s ease-in-out infinite;
+  }
+  #siderLogo.show { opacity: 1; }
+  @keyframes siderFloat {
+    0%, 100% { transform: translate(-50%, -50%) scale(1); }
+    50%      { transform: translate(-50%, calc(-50% - 8px)) scale(1.05); }
+  }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<img id="siderLogo" src="sider/sider-logo.png" alt="">
+<script>
+(function () {
+  "use strict";
+  var canvas = document.getElementById("c");
+  var ctx = canvas.getContext("2d");
+  var RING_COLOR = "#17A2B8";
+
+  // 纯代码雨模式（welcome.html?rain=1）：极域教室控制页复用开机代码雨时使用，跳过苯环与徽标动画
+  var RAIN_ONLY = /rain/.test(window.location.search);
+
+  // ===== 蜂巢几何：6 个苯环绕中心排列（六边形蜂窝） =====
+  // 单个苯环外圈六边形半径 r；蜂巢中心间距 = r * sqrt(3)
+  // 6 个环的中心位置（0=上, 1=右上, 2=右下, 3=下, 4=左下, 5=左上）
+  function honeycombCenters(cx, cy, r) {
+    var d = r * Math.sqrt(3); // 中心间距
+    return [
+      { x: cx,           y: cy - d },  // 上
+      { x: cx + d * 0.75, y: cy - d * 0.5 },  // 右上
+      { x: cx + d * 0.75, y: cy + d * 0.5 },  // 右下
+      { x: cx,           y: cy + d },  // 下
+      { x: cx - d * 0.75, y: cy + d * 0.5 },  // 左下
+      { x: cx - d * 0.75, y: cy - d * 0.5 }   // 左上
+    ];
+  }
+
+  // ===== 苯环几何（复用 SplashOverlay 参数） =====
+  // 外圈六边形顶点（以中心为原点，半径 r）
+  function hexVertices(cx, cy, r) {
+    var pts = [];
+    for (var i = 0; i < 6; i++) {
+      var a = -Math.PI / 2 + i * Math.PI / 3;  // V0 上 → 顺时针
+      pts.push({ x: cx + r * Math.cos(a), y: cy + r * Math.sin(a) });
+    }
+    return pts;
+  }
+
+  // 三根内部短双键线（平行于边 0/2/4，向心内缩 0.68，两端缩 15%）
+  function innerBonds(cx, cy, r) {
+    var s = 0.68;       // 向心缩放
+    var trim = 0.15;    // 两端缩进
+    var bonds = [];
+    // 平行边 0（V0→V1, 右上）、边 2（V2→V3, 右下）、边 4（V4→V5, 左上）
+    for (var k = 0; k < 3; k++) {
+      var i = k * 2;
+      var a = -Math.PI / 2 + i * Math.PI / 3;
+      var b = -Math.PI / 2 + (i + 1) * Math.PI / 3;
+      var mx = (Math.cos(a) + Math.cos(b)) / 2;
+      var my = (Math.sin(a) + Math.sin(b)) / 2;
+      var dx = Math.cos(b) - Math.cos(a);
+      var dy = Math.sin(b) - Math.sin(a);
+      var x1 = cx + r * s * Math.cos(a) + dx * r * trim;
+      var y1 = cy + r * s * Math.sin(a) + dy * r * trim;
+      var x2 = cx + r * s * Math.cos(b) - dx * r * trim;
+      var y2 = cy + r * s * Math.sin(b) - dy * r * trim;
+      bonds.push({ x1: x1, y1: y1, x2: x2, y2: y2 });
+    }
+    return bonds;
+  }
+
+  // ===== 绘制单个苯环（progress 0~1：外圈逐边 + 内部三线） =====
+  function drawBenzene(cx, cy, r, progress, alpha) {
+    var verts = hexVertices(cx, cy, r);
+    var bonds = innerBonds(cx, cy, r);
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    ctx.strokeStyle = RING_COLOR;
+    ctx.lineWidth = Math.max(2, r * 0.07);
+    ctx.lineCap = "round";
+    ctx.lineJoin = "round";
+
+    // 外圈六边逐边顺时针绘制（6 边，每边占 progress 的 0~0.7）
+    var edgeSpan = 0.7 / 6;
+    for (var i = 0; i < 6; i++) {
+      var segStart = i * edgeSpan;
+      var segEnd = (i + 1) * edgeSpan;
+      if (progress <= segStart) break;
+      var v0 = verts[i];
+      var v1 = verts[(i + 1) % 6];
+      var t = Math.min(1, (progress - segStart) / edgeSpan);
+      ctx.beginPath();
+      ctx.moveTo(v0.x, v0.y);
+      ctx.lineTo(v0.x + (v1.x - v0.x) * t, v0.y + (v1.y - v0.y) * t);
+      ctx.stroke();
+    }
+
+    // 内部三根短线（progress 0.7~1.0，顺时针）
+    var bondSpan = 0.3 / 3;
+    for (var j = 0; j < 3; j++) {
+      var bStart = 0.7 + j * bondSpan;
+      if (progress <= bStart) break;
+      var bt = Math.min(1, (progress - bStart) / bondSpan);
+      var b = bonds[j];
+      ctx.beginPath();
+      ctx.moveTo(b.x1, b.y1);
+      ctx.lineTo(b.x1 + (b.x2 - b.x1) * bt, b.y1 + (b.y2 - b.y1) * bt);
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  // ===== 代码雨 =====
+  var cols = [];
+  var fontSize = 14;
+  var charset = "01ABCDEFGHJKLMNPQRSTUVWXYZ{}[]()<>=+*/\\#$@!?:;.,-_ai toolboxH+Studio0123456789";
+  function initRain(w, h) {
+    var n = Math.ceil(w / fontSize);
+    cols = [];
+    for (var i = 0; i < n; i++) {
+      cols.push({
+        x: i * fontSize,
+        y: Math.random() * h,
+        speed: 0.5 + Math.random() * 1.5,
+        chars: []
+      });
+    }
+  }
+  function drawRain(w, h) {
+    ctx.save();
+    ctx.font = fontSize + 'px Consolas, monospace';
+    ctx.textBaseline = 'top';
+    for (var i = 0; i < cols.length; i++) {
+      var col = cols[i];
+      for (var j = 0; j < col.chars.length; j++) {
+        var alpha = (j / col.chars.length) * 0.18;  // 高透明度
+        ctx.fillStyle = "rgba(23,162,184," + alpha + ")";
+        ctx.fillText(col.chars[j], col.x, col.y - j * fontSize);
+      }
+      // 滚动
+      col.y += col.speed;
+      if (col.y > h + 100) { col.y = -50; col.chars = []; }
+      // 随机追加字符
+      if (Math.random() > 0.3) {
+        col.chars.push(charset[Math.floor(Math.random() * charset.length)]);
+        if (col.chars.length > 25) col.chars.shift();
+      }
+    }
+    ctx.restore();
+  }
+
+  // ===== 主循环：苯环绘制→保持→淡出→重绘 =====
+  var W, H, cx, cy, ringR;
+  var phase = 0;       // 0=绘制, 1=保持, 2=淡出
+  var phaseT = 0;
+  var ringAlpha = 0;
+  var drawProgress = 0;
+
+  // SiderFusion 徽标：保持阶段淡入，其余阶段淡出
+  var siderLogo = document.getElementById("siderLogo");
+  function setSiderLogo(show) {
+    if (siderLogo) siderLogo.classList.toggle("show", show);
+  }
+
+  // 各环错峰：6 个环的绘制起始时间偏移
+  var ringOffsets = [0, 0.08, 0.16, 0.24, 0.32, 0.40];
+
+  function resize() {
+    W = canvas.width = canvas.clientWidth * (window.devicePixelRatio || 1);
+    H = canvas.height = canvas.clientHeight * (window.devicePixelRatio || 1);
+    ctx.setTransform(window.devicePixelRatio || 1, 0, 0, window.devicePixelRatio || 1, 0, 0);
+    W = canvas.clientWidth;
+    H = canvas.clientHeight;
+    cx = W / 2;
+    cy = H / 2;
+    ringR = Math.min(W, H) * 0.07;  // 单环半径
+    initRain(W, H);
+  }
+  window.addEventListener("resize", resize);
+  resize();
+
+  var lastTime = 0;
+  function loop(ts) {
+    var dt = Math.min(50, ts - lastTime) / 1000;
+    lastTime = ts;
+
+    // 半透明清屏（代码雨拖尾）
+    ctx.clearRect(0, 0, W, H);
+
+    // 1. 代码雨（背景层）
+    drawRain(W, H);
+
+    // 2. 苯环动画（前景层；纯代码雨模式下跳过，仅显示代码雨）
+    if (!RAIN_ONLY) {
+      var centers = honeycombCenters(cx, cy, ringR);
+      if (phase === 0) {
+        // 绘制阶段：3 秒完成全部 6 环
+        drawProgress += dt / 3.0;
+        ringAlpha = 1;
+        for (var i = 0; i < 6; i++) {
+          var p = Math.max(0, Math.min(1, drawProgress - ringOffsets[i]) / (1 - ringOffsets[i] / 2));
+          drawBenzene(centers[i].x, centers[i].y, ringR, p, ringAlpha);
+        }
+        if (drawProgress >= 1.2) { phase = 1; phaseT = 0; }
+      } else if (phase === 1) {
+        // 保持阶段：1.5 秒（SiderFusion 徽标淡入）
+        setSiderLogo(true);
+        ringAlpha = 1;
+        for (var i = 0; i < 6; i++) drawBenzene(centers[i].x, centers[i].y, ringR, 1, ringAlpha);
+        phaseT += dt;
+        if (phaseT > 1.5) { phase = 2; phaseT = 0; setSiderLogo(false); }
+      } else if (phase === 2) {
+        // 淡出阶段：0.8 秒
+        ringAlpha = Math.max(0, 1 - phaseT / 0.8);
+        for (var i = 0; i < 6; i++) drawBenzene(centers[i].x, centers[i].y, ringR, 1, ringAlpha);
+        phaseT += dt;
+        if (phaseT > 0.8) { phase = 0; drawProgress = 0; ringAlpha = 0; }
+      }
+    }
+
+    requestAnimationFrame(loop);
+  }
+  requestAnimationFrame(loop);
+})();
+</script>
+</body>
+</html>

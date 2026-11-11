@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Page
+    x:Class="AI_Tool_Box.Views.VideoPlayerPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <!--
+        视频播放器：MediaPlayerElement（内置播放/暂停/进度/音量/全屏控件）。
+        支持本地视频文件 与 在线视频 URL（含 m3u8/mp4 等直链）。
+    -->
+    <Grid Padding="16,12" RowSpacing="12"
+          Background="{ThemeResource ApplicationPageBackgroundThemeBrush}">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <!-- Row0: 工具行（横向滚动） -->
+        <ScrollViewer Grid.Row="0"
+                      Margin="0,0,0,10"
+                      HorizontalScrollBarVisibility="Auto"
+                      HorizontalScrollMode="Enabled"
+                      VerticalScrollBarVisibility="Disabled"
+                      VerticalScrollMode="Disabled">
+            <StackPanel Orientation="Horizontal" Spacing="8">
+                <Button Content="打开视频…"
+                        Style="{StaticResource AccentButtonStyle}"
+                        Click="OnOpenClick"/>
+                <TextBox x:Name="UrlBox"
+                         Width="420"
+                         PlaceholderText="在线视频地址（mp4 / m3u8 / webm 直链）"
+                         KeyDown="OnUrlKeyDown"/>
+                <Button Content="播放在线视频" Click="OnPlayUrlClick"/>
+                <Button Content="停止" Click="OnStopClick"/>
+            </StackPanel>
+        </ScrollViewer>
+
+        <!-- Row1: 播放区 -->
+        <Border Grid.Row="1"
+                Background="#000000"
+                BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                BorderThickness="1"
+                CornerRadius="8">
+            <MediaPlayerElement x:Name="Player"
+                                AreTransportControlsEnabled="True"
+                                Stretch="Uniform"
+                                AutoPlay="False"/>
+        </Border>
+
+        <!-- Row2: 状态栏 -->
+        <TextBlock x:Name="StatusText"
+                   Grid.Row="2"
+                   Text="未打开视频"
+                   Foreground="{ThemeResource SystemControlPageTextBaseMediumBrush}"
+                   FontSize="12"/>
+    </Grid>
+</Page>
