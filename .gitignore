@@ -57,3 +57,9 @@ bugs.txt
 
 # ---- 成人内容爬虫脚本（不上传公开仓库） ----
 assets/crawl/
+
+# ---- 内部开发交接文档（不公开） ----
+DEVELOPMENT_STATUS.md
+
+# ---- 发布产物（由 release.ps1 生成） ----
+dist/
