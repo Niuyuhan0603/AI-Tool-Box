@@ -5,7 +5,8 @@
 .DESCRIPTION
     1) 发布（默认：自包含散装，输出到 ...\win-x64\publish）；
     2) 复制到干净的暂存目录，剔除本机私有文件（logs、WebView2 缓存、pdb、运行期配置等）；
-    3) 调用 Bandizip 命令行生成 Zip 与自解压安装程序（Setup.exe）。
+    3) 调用 Bandizip 命令行生成 Zip 与自解压安装程序（Setup.exe）；
+    4) 产物统一输出到仓库根目录的 Publish 文件夹（暂存目录放在 dist，避免污染发布文件夹）。
 
 .PARAMETER Version
     版本号，用于产物命名（默认 1.0.0）。
@@ -28,7 +29,7 @@
     不生成自解压 exe。
 
 .PARAMETER CompressLevel
-    Bandizip 压缩级别 0-9（默认 5）。
+    Bandizip 压缩级别 0-9（默认 9，即最大压缩率/最小体积）。
 
 .EXAMPLE
     .\release.ps1
@@ -45,7 +46,7 @@ param(
     [switch]$NoZip,
     [switch]$NoSfx,
     [ValidateRange(0, 9)]
-    [int]$CompressLevel = 5
+    [int]$CompressLevel = 9
 )
 
 $ErrorActionPreference = 'Stop'
@@ -55,8 +56,11 @@ $repoRoot   = 'e:\ITCH\Project\Intergrated AI Codebot'
 $exeName    = 'AI-Tool-Box'
 $ridOut     = Join-Path $repoRoot 'AI-Tool-Box\src\AI-Tool-Box\bin\x64\Release\net8.0-windows10.0.19041.0'
 $publishDir = Join-Path $ridOut 'win-x64\publish'
-$distDir    = Join-Path $repoRoot 'dist'
-$stageDir   = Join-Path $distDir ("{0}-{1}" -f $exeName, $Version)
+# 发布产物输出目录（发布文件夹）
+$distDir    = Join-Path $repoRoot 'Publish'
+# 暂存目录放在 dist（已被 .gitignore 忽略），避免 350MB 中间副本混入发布文件夹
+$stageRoot  = Join-Path $repoRoot 'dist'
+$stageDir   = Join-Path $stageRoot ("{0}-{1}" -f $exeName, $Version)
 
 # Bandizip 命令行（bz.exe）
 $bzCandidates = @(

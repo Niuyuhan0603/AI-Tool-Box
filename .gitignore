@@ -63,3 +63,4 @@ DEVELOPMENT_STATUS.md
 
 # ---- 发布产物（由 release.ps1 生成） ----
 dist/
+Publish/

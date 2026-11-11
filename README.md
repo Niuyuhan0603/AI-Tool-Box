@@ -6,6 +6,8 @@
 
 > 当前版本：**1.0.0** ｜ 运行环境：Windows 10 / 11（x64）
 
+> **下载发布版**：[Releases](https://github.com/Niuyuhan0603/AI-Tool-Box/releases) 页面提供的发行文件**全部是自解压文件**（`AI-Tool-Box-<版本>-Setup.exe`）。双击它会弹出解压对话框，选择目录后自动解出完整程序——**没有安装向导、不做注册表写入、不装依赖**（已内置 .NET 8 运行时）。解压完成后运行目录下的 `AI-Tool-Box.exe` 即可（首次启动会请求管理员权限）。不需要时直接删掉整个解压目录即可卸载。
+
 ---
 
 ## 它不是一个「网页套壳」
@@ -102,7 +104,8 @@ powershell -ExecutionPolicy Bypass -File .\publish.ps1 -SingleFile
 powershell -ExecutionPolicy Bypass -File .\release.ps1
 ```
 
-- 输出到 `dist/`：`AI-Tool-Box-<版本>.zip` 与 `AI-Tool-Box-<版本>-Setup.exe`
+- 输出到 `Publish/`：`AI-Tool-Box-<版本>.zip` 与 `AI-Tool-Box-<版本>-Setup.exe`（**Release 发布用的就是这个自解压 exe**；只要它时加 `-NoZip`）
+- 压缩级别默认 **9（最大压缩率）**，可用 `-CompressLevel 0..9` 调整
 - **自动剔除**：`logs/`、`*.WebView2/`（浏览器缓存与 Cookie）、`*.pdb`、`*.log`、运行期用户配置
 - **默认剔除** `Assets/VPN-config.json`（含本机 VPN 凭据）；确需随包分发时加 `-IncludeVpnConfig`
 
